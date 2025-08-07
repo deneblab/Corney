@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Drawing;
+using System.IO;
+using System.Reflection;
 using System.Security.Principal;
 using System.Windows.Forms;
 using Corney.Features.App;
@@ -11,17 +14,16 @@ namespace Corney;
 public class CorneyContext : ApplicationContext
 {
     private readonly NotifyIcon _notifyIcon;
+    private readonly ILogger<CorneyContext> _logger;
 
     public CorneyContext(ILogger<CorneyContext> log, CorneyRegistry registry,
         IConfigFileMenuService configFileMenuService)
     {
+        _logger = log;
+        
         var exitMenuItem = new ToolStripMenuItem("Exit", null, OnExit);
-        var aboutMenuItem = new ToolStripMenuItem($"Corney - {registry.AppVersion.Sem}");
-        var isAdminMenuItem =
-            new ToolStripMenuItem($"Is Running As Administrator: {PrivilegeHelper.IsRunAsAdministrator()}");
-
-
-        var icon = PrivilegeHelper.IsRunAsAdministrator()
+        var aboutMenuItem = new ToolStripMenuItem($"Corney - {registry.AppVersion.Sem} (Administrator: {PrivilegeHelper.IsRunAsAdministrator()})");
+    var icon = PrivilegeHelper.IsRunAsAdministrator() 
             ? Resources.ResourceManager.GetObject("clock_red") as Icon
             : Resources.ResourceManager.GetObject("clock_green") as Icon;
 
@@ -34,7 +36,14 @@ public class CorneyContext : ApplicationContext
         };
 
         _notifyIcon.ContextMenuStrip.Items.Add(aboutMenuItem);
-        _notifyIcon.ContextMenuStrip.Items.Add(isAdminMenuItem);
+   
+        
+        if (!PrivilegeHelper.IsRunAsAdministrator())
+        {
+            var runAsAdminMenuItem = new ToolStripMenuItem("Run as Administrator", null, OnRunAsAdmin);
+            _notifyIcon.ContextMenuStrip.Items.Add(runAsAdminMenuItem);
+        }
+        
         _notifyIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
         _notifyIcon.ContextMenuStrip.Items.Add(configFileMenuService.CreateConfigFilesMenu(registry));
         _notifyIcon.ContextMenuStrip.Items.Add(new ToolStripSeparator());
@@ -46,6 +55,34 @@ public class CorneyContext : ApplicationContext
     {
         _notifyIcon.Visible = false;
         Application.Exit();
+    }
+
+    private void OnRunAsAdmin(object sender, EventArgs e)
+    {
+        try
+        {
+            var executablePath = Environment.ProcessPath!;
+            
+
+            var processInfo = new ProcessStartInfo
+            {
+                FileName = executablePath,
+                UseShellExecute = true,
+                Verb = "runas"
+            };
+
+            _logger.LogInformation("Attempting to restart application with elevated privileges: {ExecutablePath}", executablePath);
+            
+            Process.Start(processInfo);
+            
+            _notifyIcon.Visible = false;
+            Application.Exit();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to restart application with elevated privileges");
+            MessageBox.Show("Failed to restart as administrator. " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 }
 
