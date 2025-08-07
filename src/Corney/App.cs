@@ -12,8 +12,9 @@ namespace Corney;
 internal class App
 {
     private static readonly DLabApp _dLabApp = DLabHost.CreateDLabAppBuilder()
-        .CreateAppEnv(o => { o.PreferredAppsModes = [AppMode.Syrup, AppMode.Dev, AppMode.ProcessPathDir]; })
-        .CreateLogManager(x => x.SetMinimumLevel(LogLevel.Debug))
+        //.CreateAppEnv(o => { o.PreferredAppsModes = [AppMode.Syrup, AppMode.Dev, AppMode.ProcessPathDir]; })
+        .CreateAppEnv(o => { o.PreferredAppsModes = [AppMode.Syrup, AppMode.ProcessPathDir]; })
+        .CreateLogManager(x => x.SetMinimumLevel(LogLevel.Trace))
         .AddDeveloperLogProvider(c =>
         {
             var env = DLabHost.CurrentAppEnv();
