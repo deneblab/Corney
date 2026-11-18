@@ -34,7 +34,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-nuget-
 
-    - name: Build with NUKE (GithubRelease)
+    - name: Build with Fallout (GithubRelease)
       run: .\build.cmd GithubRelease
       shell: cmd
 
@@ -43,12 +43,12 @@ jobs:
       if: success() || failure()
       with:
         name: .NET Tests
-        path: .nuke/temp/w/Corney/test-result/*.trx
+        path: .fallout/temp/w/Corney/test-result/*.trx
         reporter: dotnet-trx
 
     - name: Upload single-file executable
       uses: actions/upload-artifact@v4
       with:
         name: corney-executable-${{ github.sha }}
-        path: .nuke/temp/w/Corney/github-release/Corney.exe
+        path: .fallout/temp/w/Corney/github-release/Corney.exe
         retention-days: 7

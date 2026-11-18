@@ -37,7 +37,7 @@ stuff/*
 .build
 .secrets/*
 dev/*
-.nuke/temp/*
+.fallout/temp/*
 .claude/*
 
 

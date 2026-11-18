@@ -6,26 +6,21 @@ using System.Text;
 using Deneblab.AbcVersion;
 using Helpers.Azure;
 using Helpers.Syrup;
-using Nuke.Common;
-using Nuke.Common.IO;
-using Nuke.Common.ProjectModel;
-using Nuke.Common.Tooling;
-using Nuke.Common.Tools.DotNet;
-using Nuke.Common.Tools.NuGet;
-using Nuke.Common.Utilities.Collections;
+using Fallout.Common;
+using Fallout.Common.IO;
+using Fallout.Solutions;
+using Fallout.Common.Tooling;
+using Fallout.Common.Tools.DotNet;
+using Fallout.Common.Tools.NuGet;
+using Fallout.Common.Utilities.Collections;
 using Serilog;
-using static Nuke.Common.Tools.DotNet.DotNetTasks;
-using static Nuke.Common.Tools.NuGet.NuGetTasks;
+using static Fallout.Common.Tools.DotNet.DotNetTasks;
+using static Fallout.Common.Tools.NuGet.NuGetTasks;
 
-class Build : NukeBuild
+class Build : FalloutBuild
 {
     [Parameter] readonly string AzureDevOpsToken = Environment.GetEnvironmentVariable("SYSTEM_ACCESSTOKEN");
 
-    /// Support plugins are available for:
-    /// - JetBrains ReSharper        https://nuke.build/resharper
-    /// - JetBrains Rider            https://nuke.build/rider
-    /// - Microsoft VisualStudio     https://nuke.build/visualstudio
-    /// - Microsoft VSCode           https://nuke.build/vscode
     readonly DateTime BuildDate = DateTime.UtcNow;
 
     [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server)")]

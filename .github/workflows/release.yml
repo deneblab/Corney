@@ -47,7 +47,7 @@ jobs:
       shell: pwsh
 
 
-    - name: Build with NUKE (GithubRelease)
+    - name: Build with Fallout (GithubRelease)
       run: .\build.cmd GithubRelease
       shell: cmd
 
@@ -69,7 +69,7 @@ jobs:
         mkdir release-assets
         
         # Package build artifacts
-        Compress-Archive -Path ".nuke/temp/w/Corney/github-release/*" -DestinationPath "release-assets/Corney-${{ steps.version.outputs.version }}-build.zip"
+        Compress-Archive -Path ".fallout/temp/w/Corney/github-release/*" -DestinationPath "release-assets/Corney-${{ steps.version.outputs.version }}-build.zip"
         
       shell: pwsh
 

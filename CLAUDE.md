@@ -9,7 +9,7 @@ Corney is a crontab file executor for Windows. It provides Windows-based schedul
 ## Development Commands
 
 ### Build System
-The project uses NUKE build system with cross-platform support:
+The project uses Fallout build system with cross-platform support:
 - **Windows**: `build.cmd` or `build.ps1`  
 - **Linux/macOS**: `build.sh`
 - **Direct build**: `dotnet build src/build/_build.csproj`
@@ -36,7 +36,7 @@ Main build targets:
 ### Project Structure
 - **Corney** (main executable): Windows Forms application with system tray integration targeting net10.0-windows
 - **Corney.Tests** (tests): xUnit test suite targeting net10.0-windows  
-- **build** (NUKE): Build automation and packaging
+- **build** (Fallout): Build automation and packaging
 - **scripts**: PowerShell installer for automated deployment
 
 ### Core Components
@@ -106,7 +106,7 @@ The application continuously monitors crontab files and executes scheduled comma
 
 ## Build and Packaging
 
-The NUKE build system provides:
+The Fallout build system provides:
 - **Assembly patching**: Version metadata injection during build
 - **Dependency merging**: LibZ for single-executable packaging
 - **NuGet packaging**: Automated package creation

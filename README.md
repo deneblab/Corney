@@ -42,7 +42,7 @@ Corney provides Windows users with the familiar Unix cron scheduling functionali
 git clone https://github.com/DenebLab/Corney.git
 cd Corney
 
-# Build using NUKE
+# Build using Fallout
 ./build.cmd
 ```
 
@@ -119,7 +119,7 @@ unzip corney.zip
 git clone https://github.com/DenebLab/Corney.git
 cd Corney
 
-# Using NUKE build system
+# Using Fallout build system
 ./build.cmd PublishLocal
 
 # Or direct dotnet build
@@ -230,7 +230,7 @@ Create `config.json` in your application directory:
 ## 🏗️ Development
 
 ### Build System
-Corney uses [NUKE](https://nuke.build/) for cross-platform build automation:
+Corney uses [Fallout](https://github.com/Fallout-build/Fallout) for cross-platform build automation:
 
 ```bash
 # Windows
