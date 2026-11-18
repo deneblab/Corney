@@ -110,6 +110,6 @@ The Fallout build system provides:
 - **Assembly patching**: Version metadata injection during build
 - **Single-file publish**: `dotnet publish` with `PublishSingleFile` (framework-dependent, win-x64); LibZ is not used
 - **NuGet packaging**: Automated package creation
-- **Syrup publishing**: the `Publish Syrup` workflow (after `Release`, or manually) runs `build.cmd --target Syrup` and `scripts/publish-syrup.ps1`, which uploads to Azure Blob Storage; needs the `AZURE_STORAGE_CONNECTION_STRING` repo secret
+- **Syrup publishing**: the `Publish Syrup` workflow (after `Release`, or manually) runs `build.cmd --target Syrup` and `scripts/publish-syrup.ps1`, which uploads to Azure Blob Storage; needs the `AZURE_STORAGE_CONNECTION_STRING_KEY1` repo secret
 - **CI**: GitHub Actions (`.github/workflows`), default target is `GithubRelease`
 - **Artifact management**: ZIP and NuGet package generation
