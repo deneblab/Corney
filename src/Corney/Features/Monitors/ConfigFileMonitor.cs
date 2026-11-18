@@ -10,7 +10,6 @@ using Corney.Common.Io;
 using Corney.Common.Logging;
 using Corney.Common.Performance;
 using Corney.Features.App;
-using Deneblab.Common.Logging;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -26,10 +25,10 @@ public class ConfigFileMonitorService : IConfigFileMonitor
     private readonly CompositeDisposable _configDisposable = new();
     private readonly string _configFilePath;
     private readonly FileWatchHelpers _fileWatchHelpers;
-    private readonly PerformanceMonitor _performanceMonitor;
 
     private readonly ILogger<ConfigFileMonitorService> _log;
     private readonly IMediator _mediator;
+    private readonly PerformanceMonitor _performanceMonitor;
     private IObservable<FileSystemEventArgs> _configFileObservable;
     private int _counter;
     private CorneyConfig _lastConfig = new();
@@ -45,10 +44,10 @@ public class ConfigFileMonitorService : IConfigFileMonitor
         _fileWatchHelpers = fileWatchHelpers;
         _configFilePath = registry.ConfigFilePath;
         Registry = registry;
-        
+
         // Get performance monitor if available
         serviceProvider.TryGetService(out _performanceMonitor);
-        
+
         Task.Factory.StartNew(ChannelConsumerProcess, TaskCreationOptions.LongRunning);
     }
 
@@ -59,43 +58,70 @@ public class ConfigFileMonitorService : IConfigFileMonitor
         _log.LogDebug(LogMessages.ServiceStopping, "ConfigFileMonitorService disposed");
         _configDisposable.Dispose();
         ClearDisposable();
-        
+
         // Complete the channel
         _channel.Writer.Complete();
+    }
+
+    public void Initialize()
+    {
+        using var timer = _performanceMonitor?.StartTiming($"{MetricCategories.FileMonitoring}.initialize");
+
+        try
+        {
+            // Load initial config to get debounce settings
+            _lastConfig = LoadConfigSafely(_configFilePath);
+            var debounceInterval = TimeSpan.FromSeconds(_lastConfig.FileMonitoringDebounceSeconds);
+
+            _configFileObservable = _fileWatchHelpers.CreateForFile(_configFilePath, debounceInterval);
+            _configDisposable.Add(_configFileObservable.Subscribe(WriteToChannel));
+            _ = MonitorFilesInConfig(_configFilePath);
+
+            _log.LogInformation("ConfigFileMonitorService initialized with {DebounceMs}ms debounce",
+                debounceInterval.TotalMilliseconds);
+
+            timer?.MarkSuccess();
+        }
+        catch (Exception ex)
+        {
+            timer?.MarkFailure();
+            _log.LogError(ex, "Failed to initialize ConfigFileMonitorService");
+            throw;
+        }
     }
 
     private async Task ChannelConsumerProcess()
     {
         while (await _channel.Reader.WaitToReadAsync())
         {
-            _log.Debug("New message in channel");
+            _log.LogDebug("New message in channel");
             if (_channel.Reader.TryRead(out var msg))
                 try
                 {
-                    _log.Debug($"Read from channel; File: {msg.FullPath} - OK");
+                    _log.LogDebug($"Read from channel; File: {msg.FullPath} - OK");
                     await ProcessOneConfigFileEvent(msg);
                 }
                 catch (Exception e)
                 {
-                    _log.Error(e.Message);
-                    _log.Error(e.InnerException?.Message);
-                    _log.Error(e);
+                    _log.LogError(e.Message);
+                    _log.LogError(e.InnerException?.Message);
+                   
                 }
             else
-                _log.Debug("Read from channel; FAIL");
+                _log.LogDebug("Read from channel; FAIL");
         }
     }
 
     private void WriteToChannel(FileSystemEventArgs e)
     {
-        _log.Debug(_channel.Writer.TryWrite(e)
+        _log.LogDebug(_channel.Writer.TryWrite(e)
             ? $"Write to channel: File: {e.FullPath} - OK"
             : $"Write to channel: File: {e.FullPath} - FAIL");
     }
 
     private void ClearDisposable()
     {
-        _log.Debug("Begin ClearDisposable");
+        _log.LogDebug("Begin ClearDisposable");
         //var index = 0;
         try
         {
@@ -112,9 +138,8 @@ public class ConfigFileMonitorService : IConfigFileMonitor
         }
         catch (Exception e)
         {
-            _log.Error(e.Message);
-            _log.Error(e.InnerException?.Message);
-            _log.Error(e);
+            _log.LogError(e.Message);
+            _log.LogError(e.InnerException?.Message);
         }
 
         try
@@ -124,45 +149,18 @@ public class ConfigFileMonitorService : IConfigFileMonitor
         }
         catch (Exception e)
         {
-            _log.Error(e.Message);
-            _log.Error(e.InnerException?.Message);
-            _log.Error(e);
+            _log.LogError(e.Message);
+            _log.LogError(e.InnerException?.Message);
+
         }
 
-        _log.Debug("End ClearDisposable");
-    }
-
-    public void Initialize()
-    {
-        using var timer = _performanceMonitor?.StartTiming($"{MetricCategories.FileMonitoring}.initialize");
-        
-        try
-        {
-            // Load initial config to get debounce settings
-            _lastConfig = LoadConfigSafely(_configFilePath);
-            var debounceInterval = TimeSpan.FromSeconds(_lastConfig.FileMonitoringDebounceSeconds);
-            
-            _configFileObservable = _fileWatchHelpers.CreateForFile(_configFilePath, debounceInterval);
-            _configDisposable.Add(_configFileObservable.Subscribe(WriteToChannel));
-            _ = MonitorFilesInConfig(_configFilePath);
-            
-            _log.LogInformation("ConfigFileMonitorService initialized with {DebounceMs}ms debounce", 
-                debounceInterval.TotalMilliseconds);
-                
-            timer?.MarkSuccess();
-        }
-        catch (Exception ex)
-        {
-            timer?.MarkFailure();
-            _log.LogError(ex, "Failed to initialize ConfigFileMonitorService");
-            throw;
-        }
+        _log.LogDebug("End ClearDisposable");
     }
 
 
     private async Task ProcessOneConfigFileEvent(FileSystemEventArgs x)
     {
-        _log.Debug(
+        _log.LogDebug(
             "ProcessOneConfigFileEvent; " +
             $"Counter: {_counter++}; " +
             $"Type: {x.ChangeType}; " +
@@ -180,22 +178,23 @@ public class ConfigFileMonitorService : IConfigFileMonitor
                     // Implement basic change detection to avoid unnecessary reloads
                     var newConfig = LoadConfigSafely(_configFilePath);
                     var configChanged = HasConfigurationChanged(newConfig);
-                    
+
                     if (!configChanged && DateTime.UtcNow - _lastReload < TimeSpan.FromSeconds(1))
                     {
                         _log.LogDebug("Configuration file changed but content appears identical, skipping reload");
                         timer?.MarkSuccess();
                         break;
                     }
-                    
+
                     _lastConfig = newConfig;
                     _lastReload = DateTime.UtcNow;
-                    
+
                     var files = MonitorFilesInConfig(_configFilePath);
                     await _mediator.Publish(new CrontabFileIsChanged(files));
-                    
+
                     timer?.MarkSuccess();
                 }
+
                 break;
             case WatcherChangeTypes.Renamed:
                 break;
@@ -210,7 +209,7 @@ public class ConfigFileMonitorService : IConfigFileMonitor
     private string[] MonitorFilesInConfig(string file)
     {
         using var timer = _performanceMonitor?.StartTiming($"{MetricCategories.FileMonitoring}.setup_monitoring");
-        
+
         var list = new HashSet<string>();
         ClearDisposable();
 
@@ -219,12 +218,12 @@ public class ConfigFileMonitorService : IConfigFileMonitor
             var config = LoadConfigSafely(file);
             var filesToObserve = config.CrontabFiles.Distinct().ToArray();
             var debounceInterval = TimeSpan.FromSeconds(config.FileMonitoringDebounceSeconds);
-            
-            _log.LogDebug("Files to monitor: {FileCount} with {DebounceMs}ms debounce", 
+
+            _log.LogDebug("Files to monitor: {FileCount} with {DebounceMs}ms debounce",
                 filesToObserve.Length, debounceInterval.TotalMilliseconds);
-            
+
             var cronFilesObservable = new List<IObservable<FileSystemEventArgs>>();
-            
+
             foreach (var filesCrontabFile in filesToObserve)
             {
                 _log.LogDebug("File to monitor: {FilePath}", filesCrontabFile);
@@ -238,7 +237,7 @@ public class ConfigFileMonitorService : IConfigFileMonitor
                 var dis = cronFilesObservable.Merge().Subscribe(WriteToChannel);
                 _cfd.Add(dis);
             }
-            
+
             timer?.MarkSuccess();
             return list.ToArray();
         }
@@ -249,7 +248,7 @@ public class ConfigFileMonitorService : IConfigFileMonitor
             return Array.Empty<string>();
         }
     }
-    
+
     private CorneyConfig LoadConfigSafely(string configPath)
     {
         try
@@ -262,7 +261,7 @@ public class ConfigFileMonitorService : IConfigFileMonitor
             return _lastConfig ?? new CorneyConfig();
         }
     }
-    
+
     private bool HasConfigurationChanged(CorneyConfig newConfig)
     {
         // Quick reference check
@@ -272,22 +271,18 @@ public class ConfigFileMonitorService : IConfigFileMonitor
         // Compare key properties
         if (_lastConfig.FileMonitoringDebounceSeconds != newConfig.FileMonitoringDebounceSeconds)
             return true;
-            
+
         if (_lastConfig.CheckIntervalSeconds != newConfig.CheckIntervalSeconds)
             return true;
 
         // Compare crontab files array
         if (_lastConfig.CrontabFiles?.Length != newConfig.CrontabFiles?.Length)
             return true;
-            
+
         if (_lastConfig.CrontabFiles != null && newConfig.CrontabFiles != null)
-        {
-            for (int i = 0; i < newConfig.CrontabFiles.Length; i++)
-            {
+            for (var i = 0; i < newConfig.CrontabFiles.Length; i++)
                 if (_lastConfig.CrontabFiles[i] != newConfig.CrontabFiles[i])
                     return true;
-            }
-        }
 
         return false;
     }

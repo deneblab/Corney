@@ -16,8 +16,7 @@ public static class ConfigurationValidator
     /// Validates configuration using data annotations and custom business rules
     /// </summary>
     public static ConfigurationValidationResult ValidateConfiguration(
-        CorneyConfig config, 
-        ILogger logger)
+        CorneyConfig config)
     {
         var result = new ConfigurationValidationResult();
         var validationContext = new ValidationContext(config);
@@ -41,14 +40,14 @@ public static class ConfigurationValidator
         }
 
         // Custom business rule validations
-        ValidateCrontabFiles(config, result, logger);
+        ValidateCrontabFiles(config, result);
         ValidateIntervalSettings(config, result);
 
         result.IsValid = result.Errors.Count == 0;
         return result;
     }
 
-    private static void ValidateCrontabFiles(CorneyConfig config, ConfigurationValidationResult result, ILogger logger)
+    private static void ValidateCrontabFiles(CorneyConfig config, ConfigurationValidationResult result)
     {
         if (config.CrontabFiles == null || config.CrontabFiles.Length == 0)
         {

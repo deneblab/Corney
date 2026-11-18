@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Corney.Common.Performance;
 using Corney.Common.Resilience;
 using Cronos;
-using Deneblab.Common.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -16,8 +15,8 @@ public class CrontabFileParser
 {
     private static readonly char[] _delimiterChars = { ' ', '\t' };
     private readonly ILogger<CrontabFileParser> _log;
-    private readonly ResilientFileReader _resilientFileReader;
     private readonly PerformanceMonitor _performanceMonitor;
+    private readonly ResilientFileReader _resilientFileReader;
 
     public CrontabFileParser(ILogger<CrontabFileParser> log, IServiceProvider serviceProvider)
     {
@@ -26,7 +25,7 @@ public class CrontabFileParser
         var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
         var resilientLogger = loggerFactory.CreateLogger<ResilientFileReader>();
         _resilientFileReader = ResilientFileReaderFactory.CreateAggressive(resilientLogger);
-        
+
         // Get performance monitor if available
         serviceProvider.TryGetService(out _performanceMonitor);
     }
@@ -34,10 +33,9 @@ public class CrontabFileParser
     public List<CronDefinition> Read(string crontabFile)
     {
         if (_performanceMonitor != null)
-        {
-            return _performanceMonitor.RecordExecution($"{MetricCategories.FileRead}.crontab", () => ReadInternal(crontabFile));
-        }
-        
+            return _performanceMonitor.RecordExecution($"{MetricCategories.FileRead}.crontab",
+                () => ReadInternal(crontabFile));
+
         return ReadInternal(crontabFile);
     }
 
@@ -53,7 +51,7 @@ public class CrontabFileParser
 
         var m =
             $"Valid line in config: {crontabFile}{Environment.NewLine}{string.Join(Environment.NewLine, source)}";
-        _log.Debug(m);
+        _log.LogDebug(m);
 
         var index = 1;
         foreach (var s1 in source)
@@ -72,8 +70,7 @@ public class CrontabFileParser
             }
             catch (Exception e)
             {
-                _log.Error(e, $"Problem with file: {crontabFile}; Line number: {index}; Line text: '{s1}'");
-                _log.Error(e);
+                _log.LogError(e, $"Problem with file: {crontabFile}; Line number: {index}; Line text: '{s1}'");
             }
 
             index++;
@@ -85,10 +82,9 @@ public class CrontabFileParser
     public async Task<List<CronDefinition>> ReadAsync(string crontabFile)
     {
         if (_performanceMonitor != null)
-        {
-            return await _performanceMonitor.RecordExecutionAsync($"{MetricCategories.FileRead}.crontab_async", () => ReadAsyncInternal(crontabFile));
-        }
-        
+            return await _performanceMonitor.RecordExecutionAsync($"{MetricCategories.FileRead}.crontab_async",
+                () => ReadAsyncInternal(crontabFile));
+
         return await ReadAsyncInternal(crontabFile);
     }
 
@@ -104,7 +100,7 @@ public class CrontabFileParser
 
         var m =
             $"Valid line in config: {crontabFile}{Environment.NewLine}{string.Join(Environment.NewLine, source)}";
-        _log.Debug(m);
+        _log.LogDebug(m);
 
         var index = 1;
         foreach (var s1 in source)
@@ -123,8 +119,7 @@ public class CrontabFileParser
             }
             catch (Exception e)
             {
-                _log.Error(e, $"Problem with file: {crontabFile}; Line number: {index}; Line text: '{s1}'");
-                _log.Error(e);
+                _log.LogError(e, $"Problem with file: {crontabFile}; Line number: {index}; Line text: '{s1}'");
             }
 
             index++;
@@ -176,6 +171,6 @@ public class CrontabFileParser
         sb.AppendLine($"Line: {definition.Replace('\t', ' ').Replace("  ", " ")}");
         sb.AppendLine($"Cron part: {cronDefinition.CronPart}");
         sb.Append($"Next: {cronDefinition.Next?.ToString("yyyy-MM-ddTHH:mm:ssZ")}");
-        _log.Debug(sb.ToString());
+        _log.LogDebug(sb.ToString());
     }
 }

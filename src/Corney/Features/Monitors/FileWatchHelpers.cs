@@ -3,7 +3,7 @@ using System;
 using System.IO;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using Deneblab.Common.Logging;
+
 
 namespace Corney.Features.Monitors
 {
@@ -54,7 +54,7 @@ namespace Corney.Features.Monitors
                     .Throttle(debounceInterval)
                     .Finally(() =>
                     {
-                        _log.Debug($"Finally on FileSystemEventArgsObservable: {path}");
+                        _log.LogDebug($"Finally on FileSystemEventArgsObservable: {path}");
                         fsw.Dispose();
                     })
                     .Select(x => x.EventArgs)

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Versioning;
 using System.Text.Json;
@@ -8,63 +9,61 @@ using Corney.Common.Diagnostics;
 using Corney.Common.Io;
 using Corney.Common.Logging;
 using Corney.Common.Performance;
-using Corney.Core.Features.Cron.Service;
+using Corney.Common.SimpleEnv;
 using Corney.Features.Cron;
 using Corney.Features.Monitors;
 using Corney.Features.Processes;
-using Deneblab.Common.Host;
-using Deneblab.Common.Logging;
+using Deneblab.SimpleLog;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ZLogger;
-using ZLogger.Providers;
 
 namespace Corney.Features.App;
 
 public class AppBuilder
 {
-    private readonly AppEnv _env;
-    private readonly ILogger<AppBuilder> _log;
-
-    public AppBuilder(AppEnv env, ILoggerFactory getLoggerFactory)
+    public async Task Stage1(string[] args)
     {
-        _env = env;
-        _log = getLoggerFactory.CreateLogger<AppBuilder>();
-    }
-
-    public async Task MainLowLevel(string[] args)
-    {
+        var env = SimpleEnv.GetWithAppRootMarkersSafe(".syrup");
         try
         {
-            var config = await CreateConfigAsync(_env);
-            var registry = CreateRegistry(_env, config);
+            var config = await CreateConfigAsync(env);
+            var registry = CreateRegistry(env, config);
             var host = CreateHost(args, registry);
-            await MainRegular(host);
+            await Stage2(host);
         }
         catch (Exception e)
         {
-            _log.Critical(e);
-            _log.Critical(e.StackTrace);
-            _log.Critical($"Env: {JsonSerializer.Serialize(_env,
-                new JsonSerializerOptions { WriteIndented = true })}");
+            var dir = string.IsNullOrEmpty(Environment.ProcessPath)
+                ? Environment.CurrentDirectory
+                : Path.GetDirectoryName(Environment.ProcessPath);
+            var errorFile = Path.Combine(dir!, "error.log.txt");
+            var l = new List<string>
+            {
+                e.Message,
+                e.StackTrace,
+                $"Env: {JsonSerializer.Serialize(env,
+                    new JsonSerializerOptions { WriteIndented = true })}"
+            };
+            await File.WriteAllLinesAsync(errorFile, l);
         }
     }
 
-    private async Task MainRegular(IHost host)
+    private async Task Stage2(IHost host)
     {
         var log = host.Services.GetRequiredService<ILogger<AppBuilder>>();
         var registry = host.Services.GetRequiredService<CorneyRegistry>();
+        var env = registry.AppEnv;
         try
         {
             await Process(host, log, registry);
         }
         catch (Exception e)
         {
-            log.Critical(e);
-            log.Critical(e.StackTrace);
-            log.Critical($"Env: {JsonSerializer.Serialize(_env,
+            log.LogCritical(e.Message);
+            log.LogCritical(e.StackTrace);
+            log.LogCritical($"Env: {JsonSerializer.Serialize(env,
                 new JsonSerializerOptions { WriteIndented = true })}");
         }
     }
@@ -108,21 +107,11 @@ public class AppBuilder
             {
                 l.ClearProviders();
                 l.SetMinimumLevel(LogLevel.Debug);
-                l.AddZLoggerArchivingRollingFile(o =>
+                l.AddSingleFile(o =>
                 {
-                    o.FilePathSelector = (dt, sequenceNumber) =>
-                        Path.Combine(registry.AppEnv.LogDir,
-                            $"{registry.AppEnv.AppNameSlug}.{dt:yyyy-MM-dd}.{sequenceNumber:000}.txt");
-                    o.RollingInterval = RollingInterval.Day;
-                    o.MaxArchiveFilesPerLog = 7;
-                    o.ArchiveInactiveFiles = true; // Archive inactive files
-                    // o.DebugLoggerFactory = _loggerFactory;
-
-                    //o.EnableFileDeletionRecovery = true; // Enable recovery of deleted files
-                    //o.AllowExternalFileDeletion = true; // Allow external deletion of log files
-                    //o.AllowExternalFileReading = true;
-
-                    if (registry.AppEnv.IsDev) o.CloseFileAfterEachWrite = true; // Close file after each write
+                    o.DirectoryPath = registry.AppEnv.LogDir;
+                    o.FileName = "corney";
+                    o.ArchiveRetentionDays = 7;
                 });
             })
             .Build();
@@ -130,39 +119,39 @@ public class AppBuilder
         return host;
     }
 
-    private async Task<CorneyConfig> CreateConfigAsync(AppEnv env)
+    private async Task<CorneyConfig> CreateConfigAsync(SimpleEnvResult env)
     {
         var configPath = ConfigPath(env);
         CorneyConfig config;
 
         if (File.Exists(configPath))
         {
-            _log.Trace($"Using existing config file at {configPath}");
+            // _log.Trace($"Using existing config file at {configPath}");
             config = await Misc.ReadJsonAsync<CorneyConfig>(configPath);
         }
         else
         {
-            _log.Trace($"Creating new config file at {configPath}");
+            // _log.Trace($"Creating new config file at {configPath}");
             config = new CorneyConfig();
             if (Directory.Exists(env.ConfigDir) == false) Directory.CreateDirectory(env.ConfigDir);
             await Misc.WriteJsonAsync(configPath, config);
         }
 
         // Validate configuration
-        var validationResult = ConfigurationValidator.ValidateConfiguration(config, _log);
+        var validationResult = ConfigurationValidator.ValidateConfiguration(config);
 
         if (!validationResult.IsValid)
         {
             var errorMessage = validationResult.GetFormattedErrorMessage();
-            _log.LogError("Configuration validation failed:{NewLine}{ErrorMessage}", Environment.NewLine, errorMessage);
+            // _log.LogError("Configuration validation failed:{NewLine}{ErrorMessage}", Environment.NewLine, errorMessage);
             throw new InvalidOperationException($"Configuration validation failed:{Environment.NewLine}{errorMessage}");
         }
 
         // Log warnings if any
-        if (validationResult.Warnings.Count > 0)
-            foreach (var warning in validationResult.Warnings)
-                _log.LogWarning("Configuration warning - {PropertyName}: {WarningMessage}",
-                    warning.PropertyName, warning.WarningMessage);
+        //if (validationResult.Warnings.Count > 0)
+        //    foreach (var warning in validationResult.Warnings)
+        //        _log.LogWarning("Configuration warning - {PropertyName}: {WarningMessage}",
+        //            warning.PropertyName, warning.WarningMessage);
 
         return config;
     }
@@ -171,9 +160,9 @@ public class AppBuilder
     private static async Task Process(IHost host, ILogger log, CorneyRegistry registry)
     {
         log.LogInformation(LogMessages.ApplicationStarted, LogMessages.ApplicationStartedTemplate,
-            registry.AppEnv.AppVersion.FullName);
-        log.ZLogInformation($"Mode: {registry.AppEnv.AppMode}; " +
-                            $"Root: {registry.AppEnv.RootDir};");
+            registry.AppVersion.Product);
+        log.LogInformation($"Mode: {registry.AppEnv.AppMode}; " +
+                           $"Root: {registry.AppEnv.AppRoot};");
 
         var mediator = host.Services.GetRequiredService<IMediator>();
 
@@ -186,14 +175,13 @@ public class AppBuilder
         Application.Run(form);
     }
 
-
-    private string ConfigPath(AppEnv env)
+    private string ConfigPath(SimpleEnvResult env)
     {
-        var configPath = Path.Combine(env.ConfigDir, "corney-config.json");
+        var configPath = Path.Combine(env.ConfigDir, Environment.MachineName, "corney", "config.json");
         return configPath;
     }
 
-    private CorneyRegistry CreateRegistry(AppEnv env, CorneyConfig config)
+    private CorneyRegistry CreateRegistry(SimpleEnvResult env, CorneyConfig config)
     {
         var configPath = ConfigPath(env);
         return new CorneyRegistry(env, configPath, config);

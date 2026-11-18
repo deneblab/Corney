@@ -2,7 +2,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Corney.Common.Logging;
-using Deneblab.Common.Logging;
 using MediatR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,7 +21,7 @@ public class MinuteBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _log.Info("MinuteBackgroundService starting");
+        _log.LogInformation("MinuteBackgroundService starting");
 
         while (!stoppingToken.IsCancellationRequested)
             try
@@ -40,7 +39,7 @@ public class MinuteBackgroundService : BackgroundService
                 }
                 catch (OperationCanceledException)
                 {
-                    _log.Info("MinuteBackgroundService stopping");
+                    _log.LogInformation("MinuteBackgroundService stopping");
                     return;
                 }
 
@@ -48,14 +47,14 @@ public class MinuteBackgroundService : BackgroundService
             }
             catch (OperationCanceledException)
             {
-                _log.Info("MinuteBackgroundService stopping");
+                _log.LogInformation("MinuteBackgroundService stopping");
                 return;
             }
             catch (Exception ex)
             {
                 if (stoppingToken.IsCancellationRequested)
                 {
-                    _log.Info("MinuteBackgroundService stopping due to error");
+                    _log.LogInformation("MinuteBackgroundService stopping due to error");
                     return;
                 }
 
@@ -66,12 +65,12 @@ public class MinuteBackgroundService : BackgroundService
                 }
                 catch (OperationCanceledException)
                 {
-                    _log.Info("MinuteBackgroundService stopping during recovery");
+                    _log.LogInformation("MinuteBackgroundService stopping during recovery");
                     return;
                 }
             }
 
-        _log.Info("MinuteBackgroundService stopped");
+        _log.LogInformation("MinuteBackgroundService stopped");
     }
 
     private async Task ExecuteMainTask()

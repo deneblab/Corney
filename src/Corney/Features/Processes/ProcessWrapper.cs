@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -6,16 +7,16 @@ using Corney.Common.Logging;
 using Corney.Common.Performance;
 using Corney.Common.Resilience;
 using Corney.Core.Features.Cron.Models;
-using Deneblab.Common.Logging;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Corney.Features.Processes;
 
 public class ProcessWrapper
 {
     private readonly ILogger<ProcessWrapper> _log;
-    private readonly ResilientProcessExecutor _resilientExecutor;
     private readonly PerformanceMonitor _performanceMonitor;
+    private readonly ResilientProcessExecutor _resilientExecutor;
 
     public ProcessWrapper()
     {
@@ -25,7 +26,7 @@ public class ProcessWrapper
     {
         _log = log;
         _performanceMonitor = performanceMonitor;
-        
+
         // Create resilient process executor with circuit breaker and retry policies
         var circuitBreakerOptions = new CircuitBreakerOptions
         {
@@ -44,9 +45,9 @@ public class ProcessWrapper
         };
 
         // Using NullLoggerFactory since we don't have access to the factory
-        var loggerFactory = Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance;
-        
-        var circuitBreaker = new CircuitBreaker(circuitBreakerOptions, 
+        var loggerFactory = NullLoggerFactory.Instance;
+
+        var circuitBreaker = new CircuitBreaker(circuitBreakerOptions,
             loggerFactory.CreateLogger<CircuitBreaker>());
         var retryPolicy = new RetryPolicy(retryPolicyOptions,
             loggerFactory.CreateLogger<RetryPolicy>());
@@ -65,8 +66,9 @@ public class ProcessWrapper
 
         // Prepare ExecuteItem with working directory if not set
         var executeItem = PrepareExecuteItem(item);
-        
-        var operationName = $"{MetricCategories.ProcessExecution}.{Path.GetFileNameWithoutExtension(executeItem.Program)}";
+
+        var operationName =
+            $"{MetricCategories.ProcessExecution}.{Path.GetFileNameWithoutExtension(executeItem.Program)}";
 
         try
         {
@@ -74,32 +76,26 @@ public class ProcessWrapper
             {
                 // Use resilient executor with circuit breaker and retry
                 ProcessExecutionResult result;
-                
+
                 if (_performanceMonitor != null)
-                {
-                    result = _performanceMonitor.RecordExecution(operationName, () => _resilientExecutor.Execute(executeItem));
-                }
+                    result = _performanceMonitor.RecordExecution(operationName,
+                        () => _resilientExecutor.Execute(executeItem));
                 else
-                {
                     result = _resilientExecutor.Execute(executeItem);
-                }
-                
+
                 if (result.IsFallback)
-                {
                     _log.LogWarning("Process execution used fallback: {FallbackReason}", result.FallbackReason);
-                }
                 else if (!result.Success)
-                {
-                    _log.LogWarning("Process {ProcessId} failed with exit code {ExitCode}", result.ProcessId, result.ExitCode);
-                }
-                
+                    _log.LogWarning("Process {ProcessId} failed with exit code {ExitCode}", result.ProcessId,
+                        result.ExitCode);
+
                 // Record additional performance metrics
                 _performanceMonitor?.RecordMetric(new PerformanceMetrics
                 {
                     OperationName = $"{operationName}.detailed",
                     Duration = result.Duration,
                     Success = result.Success && !result.IsFallback,
-                    AdditionalData = new()
+                    AdditionalData = new Dictionary<string, object>
                     {
                         ["ProcessId"] = result.ProcessId,
                         ["ExitCode"] = result.ExitCode,
@@ -112,13 +108,13 @@ public class ProcessWrapper
             {
                 // Fallback to legacy execution if resilient executor not available
                 if (_performanceMonitor != null)
-                {
-                    _performanceMonitor.RecordExecution(operationName, () => { ExecuteLegacy(executeItem); return true; });
-                }
+                    _performanceMonitor.RecordExecution(operationName, () =>
+                    {
+                        ExecuteLegacy(executeItem);
+                        return true;
+                    });
                 else
-                {
                     ExecuteLegacy(executeItem);
-                }
             }
         }
         catch (Exception ex)
@@ -129,7 +125,7 @@ public class ProcessWrapper
     }
 
     /// <summary>
-    /// Async version of Start method
+    ///     Async version of Start method
     /// </summary>
     public async Task StartAsync(ExecuteItem item)
     {
@@ -146,15 +142,12 @@ public class ProcessWrapper
             if (_resilientExecutor != null)
             {
                 var result = await _resilientExecutor.ExecuteAsync(executeItem);
-                
+
                 if (result.IsFallback)
-                {
                     _log.LogWarning("Process execution used fallback: {FallbackReason}", result.FallbackReason);
-                }
                 else if (!result.Success)
-                {
-                    _log.LogWarning("Process {ProcessId} failed with exit code {ExitCode}", result.ProcessId, result.ExitCode);
-                }
+                    _log.LogWarning("Process {ProcessId} failed with exit code {ExitCode}", result.ProcessId,
+                        result.ExitCode);
             }
             else
             {
@@ -183,10 +176,7 @@ public class ProcessWrapper
         if (string.IsNullOrEmpty(executeItem.WorkingDirectory) && Path.IsPathRooted(item.Program))
         {
             var directory = Path.GetDirectoryName(Path.GetFullPath(item.Program));
-            if (!string.IsNullOrEmpty(directory))
-            {
-                executeItem.WorkingDirectory = directory;
-            }
+            if (!string.IsNullOrEmpty(directory)) executeItem.WorkingDirectory = directory;
         }
 
         _log.LogDebug("Executing: {Program}", executeItem.Program);
@@ -199,7 +189,7 @@ public class ProcessWrapper
     private void ExecuteLegacy(ExecuteItem executeItem)
     {
         using var process = new Process();
-        
+
         process.StartInfo.FileName = executeItem.Program;
         process.StartInfo.Arguments = string.Join(" ", executeItem.GetArgumentsArray());
         process.StartInfo.WorkingDirectory = executeItem.WorkingDirectory;

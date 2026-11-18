@@ -10,26 +10,23 @@ using Corney.Common.Extensions;
 using Corney.Common.Logging;
 using Corney.Common.Performance;
 using Corney.Features.App;
-using Corney.Features.Cron;
 using Corney.Features.Processes;
-using Deneblab.Common.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Corney.Core.Features.Cron.Service;
+namespace Corney.Features.Cron;
 
 /// <summary>
-/// Core cron scheduling service that manages crontab files and executes scheduled tasks.
-/// This service monitors configuration changes, parses cron expressions, and ensures
-/// tasks are executed at their scheduled times with proper error handling and logging.
+///     Core cron scheduling service that manages crontab files and executes scheduled tasks.
+///     This service monitors configuration changes, parses cron expressions, and ensures
+///     tasks are executed at their scheduled times with proper error handling and logging.
 /// </summary>
 /// <remarks>
-/// The CronService uses a ReaderWriterLockSlim for thread-safe operations and integrates
-/// with the performance monitoring system to track execution metrics and performance.
+///     The CronService uses a ReaderWriterLockSlim for thread-safe operations and integrates
+///     with the performance monitoring system to track execution metrics and performance.
 /// </remarks>
 public class CronService : ICronService, IDisposable
 {
-    private readonly ReaderWriterLockSlim _stateLock = new(LockRecursionPolicy.SupportsRecursion);
     private readonly CorneyRegistry _corneyRegistry;
 
     private readonly Dictionary<string, List<CronDefinition>> _cronDefinitions = new(StringComparer.OrdinalIgnoreCase);
@@ -37,11 +34,13 @@ public class CronService : ICronService, IDisposable
     private readonly List<CronDefinition> _itemsToRunOnNextMinute = new();
 
     private readonly ILogger<CronService> _log;
-    private readonly IServiceProvider _serviceProvider;
     private readonly PerformanceMonitor _performanceMonitor;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ReaderWriterLockSlim _stateLock = new(LockRecursionPolicy.SupportsRecursion);
     private IDisposable _nextSchedule;
 
-    public CronService(ILogger<CronService> log, IServiceProvider serviceProvider, CorneyRegistry corneyRegistry, PerformanceMonitor performanceMonitor)
+    public CronService(ILogger<CronService> log, IServiceProvider serviceProvider, CorneyRegistry corneyRegistry,
+        PerformanceMonitor performanceMonitor)
     {
         _log = log;
         _serviceProvider = serviceProvider;
@@ -50,31 +49,33 @@ public class CronService : ICronService, IDisposable
     }
 
     /// <summary>
-    /// Starts the cron service with the specified crontab files.
-    /// This method initializes the service, parses all cron definitions, and begins scheduling.
+    ///     Starts the cron service with the specified crontab files.
+    ///     This method initializes the service, parses all cron definitions, and begins scheduling.
     /// </summary>
     /// <param name="crontabFiles">Array of crontab file paths to monitor and execute</param>
     /// <exception cref="ArgumentNullException">Thrown when crontabFiles is null</exception>
     /// <exception cref="FileNotFoundException">Thrown when a crontab file cannot be found</exception>
     public void Start(string[] crontabFiles)
     {
-        _log.LogInformation(LogMessages.CronServiceStarted, LogMessages.CronServiceStartedTemplate, _corneyRegistry.AppVersion.Sem);
+        _log.LogInformation(LogMessages.CronServiceStarted, LogMessages.CronServiceStartedTemplate,
+            _corneyRegistry.AppVersion.SemVer);
         InitWork(crontabFiles);
     }
 
     /// <summary>
-    /// Restarts the cron service with updated crontab files.
-    /// This method stops current scheduling, disposes resources, and reinitializes with new files.
+    ///     Restarts the cron service with updated crontab files.
+    ///     This method stops current scheduling, disposes resources, and reinitializes with new files.
     /// </summary>
     /// <param name="cronFiles">Array of updated crontab file paths to monitor</param>
     /// <remarks>
-    /// This method is typically called when configuration changes are detected,
-    /// allowing the service to pick up new or modified cron definitions without
-    /// requiring a full application restart.
+    ///     This method is typically called when configuration changes are detected,
+    ///     allowing the service to pick up new or modified cron definitions without
+    ///     requiring a full application restart.
     /// </remarks>
     public void Restart(string[] cronFiles)
     {
-        _log.LogInformation(LogMessages.CronServiceRestarted, LogMessages.CronServiceRestartedTemplate, _corneyRegistry.AppVersion.Sem);
+        _log.LogInformation(LogMessages.CronServiceRestarted, LogMessages.CronServiceRestartedTemplate,
+            _corneyRegistry.AppVersion.SemVer);
         var c = _nextSchedule as CompositeDisposable;
         c?.Dispose();
 
@@ -105,7 +106,7 @@ public class CronService : ICronService, IDisposable
         var next = startDown.AddMinutes(1);
         _log.LogInformation("Cron will be processing items from local time {NextExecutionTime}", next.ToLocalTime());
         WriteTasksToLog();
-        _log.Debug("*** New round  ***");
+        _log.LogDebug("*** New round  ***");
         _log.LogDebug("InitWork started with marker {Marker}", marker);
         GenerateNext(next, marker);
         ScheduleNext(next, marker);
@@ -119,7 +120,7 @@ public class CronService : ICronService, IDisposable
         var to = DateTimeOffset.Now.AddHours(24);
         const int showNumberJobs = 2;
         _log.LogDebug(
-            "Displaying first {JobCount} tasks from each crontab file in range {FromTime} to {ToTime}", 
+            "Displaying first {JobCount} tasks from each crontab file in range {FromTime} to {ToTime}",
             showNumberJobs, from, to);
 
         try
@@ -154,34 +155,33 @@ public class CronService : ICronService, IDisposable
     private void Execute(DateTime date, Guid marker)
     {
         using var executionTimer = _performanceMonitor.StartTiming($"{MetricCategories.CronExecution}.batch");
-        
-        _log.LogDebug(LogMessages.CronExecutionStarted, LogMessages.CronExecutionStartedTemplate, 
+
+        _log.LogDebug(LogMessages.CronExecutionStarted, LogMessages.CronExecutionStartedTemplate,
             marker, date.ToLocalTime(), _itemsToRunOnNextMinute.Count);
-        
+
         if (!_stateLock.TryEnterWriteLock(TimeSpan.FromSeconds(30)))
         {
             _log.LogError(LogMessages.CronLockTimeout, LogMessages.CronLockTimeoutTemplate, "write", "Execute");
             executionTimer.MarkFailure();
             return;
         }
-        
+
         try
         {
             if (_itemsToRunOnNextMinute.Any())
             {
                 var executedJobs = 0;
                 var failedJobs = 0;
-                
+
                 foreach (var cronDefinition in _itemsToRunOnNextMinute)
-                {
                     try
                     {
                         using var jobTimer = _performanceMonitor.StartTiming($"{MetricCategories.CronExecution}.job");
-                        
+
                         var processWrapper = _serviceProvider.GetRequiredService<ProcessWrapper>();
                         var t1 = Pharse.Tokenize2(cronDefinition.ExecutePart);
                         processWrapper.Start(t1);
-                        
+
                         executedJobs++;
                         jobTimer.MarkSuccess();
                     }
@@ -190,7 +190,6 @@ public class CronService : ICronService, IDisposable
                         _log.LogError(ex, "Failed to execute cron job: {ExecutePart}", cronDefinition.ExecutePart);
                         failedJobs++;
                     }
-                }
 
                 // Record batch execution metrics
                 _performanceMonitor.RecordMetric(new PerformanceMetrics
@@ -198,7 +197,7 @@ public class CronService : ICronService, IDisposable
                     OperationName = $"{MetricCategories.CronExecution}.batch_jobs",
                     Duration = TimeSpan.Zero, // Will be set by timer
                     Success = failedJobs == 0,
-                    AdditionalData = new()
+                    AdditionalData = new Dictionary<string, object>
                     {
                         ["ExecutedJobs"] = executedJobs,
                         ["FailedJobs"] = failedJobs,
@@ -212,10 +211,11 @@ public class CronService : ICronService, IDisposable
             var next = date.AddMinutes(1);
             var nextMarker = Guid.NewGuid();
             _log.LogDebug("Starting next cron execution round");
-            _log.LogDebug(LogMessages.CronExecutionCompleted, LogMessages.CronExecutionCompletedTemplate, marker, nextMarker);
+            _log.LogDebug(LogMessages.CronExecutionCompleted, LogMessages.CronExecutionCompletedTemplate, marker,
+                nextMarker);
             GenerateNext(next, nextMarker);
             ScheduleNext(next, nextMarker);
-            
+
             executionTimer.MarkSuccess();
         }
         finally
@@ -264,7 +264,8 @@ public class CronService : ICronService, IDisposable
                 // Read operation - use read lock for accessing _cronDefinitions
                 if (!_stateLock.TryEnterReadLock(TimeSpan.FromSeconds(10)))
                 {
-                    _log.LogError(LogMessages.CronLockTimeout, LogMessages.CronLockTimeoutTemplate, "read", "GenerateNext");
+                    _log.LogError(LogMessages.CronLockTimeout, LogMessages.CronLockTimeoutTemplate, "read",
+                        "GenerateNext");
                     break;
                 }
 
@@ -295,12 +296,13 @@ public class CronService : ICronService, IDisposable
             }
             catch (Exception e)
             {
-                _log.LogError(LogMessages.CronGenerateNextError, LogMessages.CronGenerateNextErrorTemplate, counter, e.Message);
-                _log.Error(e.Message);
+                _log.LogError(LogMessages.CronGenerateNextError, LogMessages.CronGenerateNextErrorTemplate, counter,
+                    e.Message);
+                _log.LogError(e.Message);
             }
         }
 
-        _log.LogDebug(LogMessages.CronTasksScheduled, LogMessages.CronTasksScheduledTemplate, 
+        _log.LogDebug(LogMessages.CronTasksScheduled, LogMessages.CronTasksScheduledTemplate,
             marker, nextLocal, _itemsToRunOnNextMinute.Count);
     }
 
@@ -309,16 +311,18 @@ public class CronService : ICronService, IDisposable
         try
         {
             _log.LogDebug("CreateListDefinitions starting for files: {CronFiles}", string.Join(", ", cronFiles));
-            
+
             if (!_stateLock.TryEnterWriteLock(TimeSpan.FromSeconds(30)))
             {
-                _log.LogError(LogMessages.CronLockTimeout, LogMessages.CronLockTimeoutTemplate, "write", "CreateListDefinitions");
+                _log.LogError(LogMessages.CronLockTimeout, LogMessages.CronLockTimeoutTemplate, "write",
+                    "CreateListDefinitions");
                 return;
             }
-            
+
             try
             {
-                _log.LogDebug(LogMessages.CronDefinitionsLoaded, LogMessages.CronDefinitionsLoadedTemplate, string.Join(", ", cronFiles));
+                _log.LogDebug(LogMessages.CronDefinitionsLoaded, LogMessages.CronDefinitionsLoadedTemplate,
+                    string.Join(", ", cronFiles));
                 _cronDefinitions.Clear();
                 foreach (var crontabFile in cronFiles)
                 {

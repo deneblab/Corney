@@ -14,7 +14,8 @@ public class CorneyContext : ApplicationContext
     private readonly ILogger<CorneyContext> _logger;
     private readonly NotifyIcon _notifyIcon;
 
-    public CorneyContext(ILogger<CorneyContext> log, CorneyRegistry registry,
+    public CorneyContext(ILogger<CorneyContext> log, 
+        CorneyRegistry registry,
         IConfigFileMenuService configFileMenuService)
     {
         _logger = log;
@@ -22,7 +23,7 @@ public class CorneyContext : ApplicationContext
         var exitMenuItem = new ToolStripMenuItem("Exit", null, OnExit);
         var aboutMenuItem =
             new ToolStripMenuItem(
-                $"Corney - {registry.AppVersion.Sem} (Administrator: {PrivilegeHelper.IsRunAsAdministrator()})");
+                $"Corney - {registry.AppVersion.SemVer} (Administrator: {PrivilegeHelper.IsRunAsAdministrator()})");
         var icon = PrivilegeHelper.IsRunAsAdministrator()
             ? Resources.ResourceManager.GetObject("clock_red") as Icon
             : Resources.ResourceManager.GetObject("clock_green") as Icon;
@@ -31,7 +32,7 @@ public class CorneyContext : ApplicationContext
         {
             Icon = icon,
             ContextMenuStrip = new ContextMenuStrip(),
-            Text = $@"Corney - {registry.AppVersion.Sem}",
+            Text = $@"Corney - {registry.AppVersion.SemVer}",
             Visible = true
         };
 
