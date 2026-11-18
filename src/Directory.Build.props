@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup Condition="'$(SBX_SANDBOX)' == 'true'">
+    <BaseOutputPath>/tmp/dotnet-build/$(MSBuildProjectName)/bin/</BaseOutputPath>
+    <BaseIntermediateOutputPath>/tmp/dotnet-build/$(MSBuildProjectName)/obj/</BaseIntermediateOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj/**;bin/**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>
