@@ -126,7 +126,7 @@ public class AppBuilder
         var file = new FileTarget("file")
         {
             FileName = Path.Combine(logDir, "corney.${date:format=yyyy-MM-dd}.txt"),
-            Layout = "${date:format=yyyy-MM-dd HH:mm:ss.fff} ${level:uppercase=true:padding=-5} " +
+            Layout = "${date:format=yyyy-MM-dd HH\\:mm\\:ss.fff} ${level:uppercase=true:padding=-5} " +
                      "${logger:shortName=true} ${message} ${exception:format=tostring}",
             MaxArchiveFiles = 9, // plus the current file = last 10
             KeepFileOpen = false,
@@ -177,7 +177,7 @@ public class AppBuilder
     private static async Task Process(IHost host, ILogger log, CorneyRegistry registry)
     {
         log.LogInformation(LogMessages.ApplicationStarted, LogMessages.ApplicationStartedTemplate,
-            registry.AppVersion.Product);
+            $"{registry.AppVersion.Product} {registry.AppVersion.SemVer}");
         log.LogInformation($"Mode: {registry.AppEnv.AppMode}; " +
                            $"Root: {registry.AppEnv.AppRoot};");
 
