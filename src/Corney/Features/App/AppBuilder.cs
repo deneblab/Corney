@@ -13,11 +13,13 @@ using Corney.Common.SimpleEnv;
 using Corney.Features.Cron;
 using Corney.Features.Monitors;
 using Corney.Features.Processes;
-using Deneblab.SimpleLog;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using NLog.Config;
+using NLog.Extensions.Logging;
+using NLog.Targets;
 
 namespace Corney.Features.App;
 
@@ -47,6 +49,10 @@ public class AppBuilder
                     new JsonSerializerOptions { WriteIndented = true })}"
             };
             await File.WriteAllLinesAsync(errorFile, l);
+        }
+        finally
+        {
+            NLog.LogManager.Shutdown();
         }
     }
 
@@ -107,16 +113,27 @@ public class AppBuilder
             {
                 l.ClearProviders();
                 l.SetMinimumLevel(LogLevel.Debug);
-                l.AddSingleFile(o =>
-                {
-                    o.DirectoryPath = registry.AppEnv.LogDir;
-                    o.FileName = "corney";
-                    o.ArchiveRetentionDays = 7;
-                });
+                l.AddNLog(CreateLogConfiguration(registry.AppEnv.LogDir));
             })
             .Build();
 
         return host;
+    }
+
+    private static LoggingConfiguration CreateLogConfiguration(string logDir)
+    {
+        var config = new LoggingConfiguration();
+        var file = new FileTarget("file")
+        {
+            FileName = Path.Combine(logDir, "corney.${date:format=yyyy-MM-dd}.txt"),
+            Layout = "${date:format=yyyy-MM-dd HH:mm:ss.fff} ${level:uppercase=true:padding=-5} " +
+                     "${logger:shortName=true} ${message} ${exception:format=tostring}",
+            MaxArchiveFiles = 9, // plus the current file = last 10
+            KeepFileOpen = false,
+            CreateDirs = true
+        };
+        config.AddRule(NLog.LogLevel.Debug, NLog.LogLevel.Fatal, file);
+        return config;
     }
 
     private async Task<CorneyConfig> CreateConfigAsync(SimpleEnvResult env)

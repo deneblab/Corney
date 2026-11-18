@@ -92,7 +92,7 @@ Uses a sophisticated bootstrap pattern:
 - **Crontab files**: Configurable paths in `CorneyConfig`
 
 ### Development Configuration
-- **NLog config**: `src/Corney/NLog.config`
+- **Logging**: NLog, configured in code (`AppBuilder.CreateLogConfiguration`); files `corney.<date>.txt` in the log dir, last 10 kept
 - **App settings**: `src/Corney/App.config`
 - **Developer config**: JSON-based configuration in `dev/app.vs/config/`
 
