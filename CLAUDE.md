@@ -108,7 +108,7 @@ The application continuously monitors crontab files and executes scheduled comma
 
 The Fallout build system provides:
 - **Assembly patching**: Version metadata injection during build
-- **Dependency merging**: LibZ for single-executable packaging
+- **Single-file publish**: `dotnet publish` with `PublishSingleFile` (framework-dependent, win-x64); LibZ is not used
 - **NuGet packaging**: Automated package creation
 - **Azure DevOps integration**: Automated CI/CD pipeline support
 - **Artifact management**: ZIP and NuGet package generation
