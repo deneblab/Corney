@@ -119,6 +119,29 @@ class Build : FalloutBuild
             }
         });
 
+    void PublishSingleFile(Project p, AbsolutePath outDir)
+    {
+        // Restore with runtime identifier
+        DotNetRestore(s => s
+            .SetProjectFile(p.Path)
+            .SetRuntime("win-x64")
+        );
+
+        DotNetPublish(o => o
+            .SetProject(p.Path)
+            .EnableNoRestore()
+            .SetConfiguration(Configuration)
+            .SetOutput(outDir)
+            .EnablePublishSingleFile()
+            .SetSelfContained(false)
+            .SetRuntime("win-x64")
+            .SetVersion(AbcVersion.SemVersion)
+            .SetFileVersion(AbcVersion.SemVersion)
+            .SetAssemblyVersion(AbcVersion.SemVersion)
+            .SetInformationalVersion(AbcVersion.InformationalVersion)
+        );
+    }
+
     Target GithubRelease => _ => _
         .DependsOn(Test)
         .Executes(() =>
@@ -131,27 +154,47 @@ class Build : FalloutBuild
             outDir.CreateOrCleanDirectory();
 
 
-            // Restore with runtime identifier
-            DotNetRestore(s => s
-                .SetProjectFile(p.Path)
-                .SetRuntime("win-x64")
-            );
-
-            DotNetPublish(o => o
-                .SetProject(p.Path)
-                .EnableNoRestore()
-                .SetConfiguration(Configuration)
-                .SetOutput(outDir)
-                .EnablePublishSingleFile()
-                .SetSelfContained(false)
-                .SetRuntime("win-x64")
-                .SetVersion(AbcVersion.SemVersion)
-                .SetFileVersion(AbcVersion.SemVersion)
-                .SetAssemblyVersion(AbcVersion.SemVersion)
-                .SetInformationalVersion(AbcVersion.InformationalVersion)
-            );
+            PublishSingleFile(p, outDir);
 
             Log.Information($"Single-file executable created: {outDir / "Corney.exe"}");
+        });
+
+    Target PublishLocalStandalone => _ => _
+        .DependsOn(Restore)
+        .Executes(() =>
+        {
+            var p = CorneyWinProject;
+            if (p == null) return;
+
+            var outDir = RootDirectory / "dev" / "app.standalone";
+            outDir.CreateDirectory();
+            Log.Information($"Build standalone; Project file: {p.Name}; Output: {outDir}");
+
+            PublishSingleFile(p, outDir);
+
+            // Marker dir: without it the exe, located inside the git repo, would be treated as Dev and use dev/app.vs
+            (outDir / ".syrup").CreateDirectory();
+
+            // Sample config, never overwrites files that already exist
+            var cfgDir = outDir / "config" / Environment.MachineName / "corney";
+            cfgDir.CreateDirectory();
+
+            var crontabFile = cfgDir / "crontab.txt";
+            if (!crontabFile.FileExists())
+                File.WriteAllText(crontabFile, string.Join(Environment.NewLine,
+                    "# Corney sample crontab: minute hour day-of-month month day-of-week command",
+                    "# Runs every 5 minutes",
+                    "*/5 * * * * cmd.exe /c echo Corney sample job",
+                    "") , new UTF8Encoding(false));
+
+            var configFile = cfgDir / "config.json";
+            if (!configFile.FileExists())
+                File.WriteAllText(configFile, System.Text.Json.JsonSerializer.Serialize(
+                    new { CrontabFiles = new[] { crontabFile.ToString() } },
+                    new System.Text.Json.JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
+
+            Log.Information($"Standalone ready: {outDir / "Corney.exe"}");
+            Log.Information($"Config: {configFile}");
         });
 
     Target Syrup => _ => _

@@ -30,6 +30,7 @@
         "Information",
         "PublishAzureDevOpsArtifacts",
         "PublishAzureDevOpsStorage",
+        "PublishLocalStandalone",
         "Restore",
         "Syrup",
         "Test"
