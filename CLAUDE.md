@@ -34,8 +34,8 @@ Main build targets:
 ## Architecture
 
 ### Project Structure
-- **Corney** (main executable): Windows Forms application with system tray integration targeting net8.0-windows
-- **Corney.Tests** (tests): xUnit test suite targeting net8.0-windows  
+- **Corney** (main executable): Windows Forms application with system tray integration targeting net10.0-windows
+- **Corney.Tests** (tests): xUnit test suite targeting net10.0-windows  
 - **build** (NUKE): Build automation and packaging
 - **scripts**: PowerShell installer for automated deployment
 

@@ -25,7 +25,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: '10.0.x'
 
     - name: Cache .NET packages
       uses: actions/cache@v4
@@ -81,7 +81,7 @@ jobs:
         
         ### What's New
         - Built from commit ${{ github.sha }}
-        - .NET 8.0 single-file executable
+        - .NET 10.0 single-file executable
         - Windows crontab file executor with system tray integration
         
         ### Downloads
@@ -89,7 +89,7 @@ jobs:
         
         ### System Requirements  
         - Windows 10/11 or Windows Server 2016+
-        - .NET 8.0 Runtime (for non-single-file builds)
+        - .NET 10.0 Runtime (for non-single-file builds)
         
         ### Usage
         1. Extract the executable

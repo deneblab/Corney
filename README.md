@@ -3,7 +3,7 @@
 **A powerful crontab file executor for Windows - bringing Unix cron scheduling to Windows systems**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![.NET](https://img.shields.io/badge/.NET-8.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/8.0)
+[![.NET](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/download/dotnet/10.0)
 [![Platform](https://img.shields.io/badge/Platform-Windows-blue.svg)](https://www.microsoft.com/windows)
 
 Corney provides Windows users with the familiar Unix cron scheduling functionality through an intuitive Windows Forms application with system tray integration. Monitor crontab files in real-time, execute scheduled tasks reliably, and enjoy enterprise-grade features like performance monitoring, error recovery, and development-time validation.
@@ -27,7 +27,7 @@ Corney provides Windows users with the familiar Unix cron scheduling functionali
 
 ### Prerequisites
 - Windows 7 or later
-- .NET 8.0 Runtime
+- .NET 10.0 Runtime
 
 ### Installation
 
@@ -77,7 +77,7 @@ cd Corney
 
 ### System Requirements
 - **OS**: Windows 7/8/10/11 (x64)
-- **Runtime**: .NET 8.0 or later
+- **Runtime**: .NET 10.0 or later
 - **Memory**: 50MB RAM minimum
 - **Disk**: 100MB available space
 
@@ -115,7 +115,7 @@ unzip corney.zip
 
 #### Option 3: Build from Source
 ```bash
-# Prerequisites: .NET 8.0 SDK
+# Prerequisites: .NET 10.0 SDK
 git clone https://github.com/DenebLab/Corney.git
 cd Corney
 
@@ -290,7 +290,7 @@ src/Corney/
 ```
 
 ### Key Technologies
-- **.NET 8.0**: Modern runtime with performance improvements
+- **.NET 10.0**: Modern runtime with performance improvements
 - **Cronos**: Cron expression parsing and scheduling
 - **MediatR**: CQRS pattern implementation
 - **System.Reactive**: Reactive extensions for async operations

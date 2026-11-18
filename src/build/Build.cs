@@ -96,7 +96,7 @@ class Build : NukeBuild
                 return;
             }
 
-            // Check if running on Windows since the test project targets net8.0-windows
+            // Check if running on Windows since the test project targets net10.0-windows
             if (!OperatingSystem.IsWindows())
             {
                 Log.Warning("Skipping tests - Windows Forms tests require Windows runtime");
