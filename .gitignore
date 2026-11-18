@@ -39,6 +39,7 @@ stuff/*
 dev/*
 .fallout/temp/*
 .claude/*
+.agents/issues/*
 
 
 
