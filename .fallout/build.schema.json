@@ -25,11 +25,8 @@
       "type": "string",
       "enum": [
         "Clean",
-        "ConfigureAzureDevOps",
         "GithubRelease",
         "Information",
-        "PublishAzureDevOpsArtifacts",
-        "PublishAzureDevOpsStorage",
         "PublishLocalStandalone",
         "Restore",
         "Syrup",
@@ -115,9 +112,6 @@
   "allOf": [
     {
       "properties": {
-        "AzureDevOpsToken": {
-          "type": "string"
-        },
         "Configuration": {
           "type": "string",
           "enum": [

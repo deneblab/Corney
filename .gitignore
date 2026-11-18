@@ -9,6 +9,8 @@ bin
 *.orig
 output
 publish-*
+!.github/workflows/publish-*
+!scripts/publish-*
 packages
 _ReSharper.*
 _dotCover.*

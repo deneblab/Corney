@@ -1,0 +1,48 @@
+name: Publish Syrup
+
+# Builds the Syrup package and uploads it to Azure Blob Storage.
+# Runs after the Release workflow succeeds, or manually (Actions tab, Run workflow).
+on:
+  workflow_run:
+    workflows: [ "Release" ]
+    types: [ completed ]
+  workflow_dispatch:
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+concurrency:
+  group: publish-syrup
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+        fetch-depth: 0
+        fetch-tags: true
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Build Syrup package
+      run: .\build.cmd --target Syrup
+      shell: cmd
+
+    - name: Publish to Azure Storage
+      run: .\scripts\publish-syrup.ps1
+      shell: pwsh
+      env:
+        AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}

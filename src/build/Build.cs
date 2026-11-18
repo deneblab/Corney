@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Deneblab.AbcVersion;
-using Helpers.Azure;
 using Helpers.Syrup;
 using Fallout.Common;
 using Fallout.Common.IO;
@@ -19,14 +18,11 @@ using static Fallout.Common.Tools.NuGet.NuGetTasks;
 
 class Build : FalloutBuild
 {
-    [Parameter] readonly string AzureDevOpsToken = Environment.GetEnvironmentVariable("SYSTEM_ACCESSTOKEN");
-
     readonly DateTime BuildDate = DateTime.UtcNow;
 
     [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server)")]
     readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
 
-    readonly bool IsAzureDevOps = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AGENT_NAME")) == false;
     [Solution] readonly Solution Solution;
     Project CorneyWinProject => Solution.GetProject("Corney").NotNull();
     AbsolutePath SourceDirectory => RootDirectory / "src";
@@ -45,22 +41,9 @@ class Build : FalloutBuild
             Log.Information($"Date: '{AbcVersion.DateTime:s}Z'");
             Log.Information($"Build target: {Configuration}");
             Log.Information($"FullVersion: '{AbcVersion.InformationalVersion}'");
-            Log.Information($"AzureDevOps IsAzureDevOps: '{IsAzureDevOps}'");
-            Log.Information($"AzureDevOps AgentName: '{Environment.GetEnvironmentVariable("AGENT_NAME")}'");
-            Log.Information(
-                $"AzureDevOps ArtifactDir: '{Environment.GetEnvironmentVariable("BUILD_ARTIFACTSTAGINGDIRECTORY")}'");
-        });
-    Target ConfigureAzureDevOps => _ => _
-        .DependsOn(Information)
-        .OnlyWhenStatic(() => IsAzureDevOps)
-        .Executes(() =>
-        {
-            Log.Information($"Set version to AzureDevOps: {AbcVersion.SemVersion}");
-            // https://github.com/microsoft/azure-pipelines-tasks/blob/master/docs/authoring/commands.md
-            Log.Information($"##vso[build.updatebuildnumber]{AbcVersion.SemVersion}");
         });
     Target Clean => _ => _
-        .DependsOn(ConfigureAzureDevOps)
+        .DependsOn(Information)
         .Executes(() =>
         {
             TmpBuild.CreateOrCleanDirectory();
@@ -242,55 +225,9 @@ class Build : FalloutBuild
             var nugetFiles = tmpReady.GlobFiles("*.nupkg");
 
             foreach (var file in nugetFiles) SyrupTools.MakeSyrupFile(file, AbcVersion, p.Name);
+
+            Log.Information($"Syrup files ready in {tmpReady}; publish with scripts/publish-syrup.ps1");
         });
 
-    Target PublishAzureDevOpsArtifacts => _ => _
-        .DependsOn(Syrup)
-        .OnlyWhenStatic(() => IsAzureDevOps)
-        .Executes(() =>
-        {
-            var p = CorneyWinProject;
-            if (p == null) return;
-            var tmpReady = TmpBuild / p.Name / "syrup";
-            var serverPublishArtifact = Environment.GetEnvironmentVariable("BUILD_ARTIFACTSTAGINGDIRECTORY");
-            tmpReady.Copy( serverPublishArtifact, ExistsPolicy.MergeAndOverwrite);
-        });
-
-    Target PublishAzureDevOpsStorage => _ => _
-        .DependsOn(PublishAzureDevOpsArtifacts)
-        .OnlyWhenStatic(() => IsAzureDevOps)
-        .Executes(async () =>
-        {
-            Log.Information($"PublishAzureDevOpsStorage ; Start");
-
-            void LogFiles(string title, List<ReleaseInfo> filesToShow)
-            {
-                Log.Information($"{title}: {filesToShow.Count}");
-                foreach (var l in filesToShow) Log.Information($"Name: {l.Name}; Date: {l.ReleaseDate}");
-            }
-
-            var storageConnectionString = Environment.GetEnvironmentVariable("azureStorageConnectionStringKey1");
-            Log.Information($"Build; storageConnectionString: {storageConnectionString}");
-            Log.Information($"Build; containerName: {Conf.AZURE_CONTAINER_NAME}");
-            var serverPublishArtifact = Environment.GetEnvironmentVariable("BUILD_ARTIFACTSTAGINGDIRECTORY");
-            var files = Directory.GetFiles(serverPublishArtifact).ToList();
-            var client = AzureSyrupTools.Create(storageConnectionString, Conf.AZURE_CONTAINER_NAME);
-            await client.UploadFiles(files);
-            var list = await client.GetSyrupFiles();
-            var fileToRemove = list.OrderByDescending(x => x.ReleaseDate).Skip(15).ToList();
-            LogFiles("Files to remove", fileToRemove);
-            await client.RemoveSyrupFiles(fileToRemove);
-            var newList = await client.GetSyrupFiles();
-            await client.CreateSyrupFilesList(newList);
-            LogFiles("Files in container", newList);
-        });
-
-
-
-    public static int Main() => Execute<Build>(x => x.PublishAzureDevOpsStorage);
-}
-
-public static class Conf
-{
-    public const string AZURE_CONTAINER_NAME = "application-corney";
+    public static int Main() => Execute<Build>(x => x.GithubRelease);
 }
