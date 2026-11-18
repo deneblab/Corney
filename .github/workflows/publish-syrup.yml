@@ -28,7 +28,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+        ref: ${{ github.event.workflow_run.head_branch || github.ref_name }}
         fetch-depth: 0
         fetch-tags: true
 
