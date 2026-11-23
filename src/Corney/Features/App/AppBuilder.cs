@@ -37,10 +37,6 @@ public class AppBuilder
         }
         catch (Exception e)
         {
-            var dir = string.IsNullOrEmpty(Environment.ProcessPath)
-                ? Environment.CurrentDirectory
-                : Path.GetDirectoryName(Environment.ProcessPath);
-            var errorFile = Path.Combine(dir!, "error.log.txt");
             var l = new List<string>
             {
                 e.Message,
@@ -48,12 +44,35 @@ public class AppBuilder
                 $"Env: {JsonSerializer.Serialize(env,
                     new JsonSerializerOptions { WriteIndented = true })}"
             };
-            await File.WriteAllLinesAsync(errorFile, l);
+            await WriteStartupErrorAsync(env, l);
         }
         finally
         {
             NLog.LogManager.Shutdown();
         }
+    }
+
+    // error.log.txt goes to the log dir; when that fails, next to the exe, so a startup error is never lost
+    private static async Task WriteStartupErrorAsync(SimpleEnvResult env, List<string> lines)
+    {
+        if (!string.IsNullOrEmpty(env?.LogDir))
+        {
+            try
+            {
+                Directory.CreateDirectory(env.LogDir);
+                await File.WriteAllLinesAsync(Path.Combine(env.LogDir, "error.log.txt"), lines);
+                return;
+            }
+            catch (Exception)
+            {
+                // fall back to the exe dir
+            }
+        }
+
+        var dir = string.IsNullOrEmpty(Environment.ProcessPath)
+            ? Environment.CurrentDirectory
+            : Path.GetDirectoryName(Environment.ProcessPath);
+        await File.WriteAllLinesAsync(Path.Combine(dir!, "error.log.txt"), lines);
     }
 
     private async Task Stage2(IHost host)
@@ -150,7 +169,7 @@ public class AppBuilder
         {
             // _log.Trace($"Creating new config file at {configPath}");
             config = new CorneyConfig();
-            if (Directory.Exists(env.ConfigDir) == false) Directory.CreateDirectory(env.ConfigDir);
+            Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
             await Misc.WriteJsonAsync(configPath, config);
         }
 

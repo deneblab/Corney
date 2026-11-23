@@ -68,10 +68,14 @@ public static class SimpleEnv
         var mode = DetermineAppMode(SimpleAppMode.ProcessPathDir);
         var root = DetermineAppRoot(mode);
 
-        // Check for UserRoot with custom markers
-        if (IsUserRootWithMarkers(markers))
+        // UserRoot: the nearest directory, from the exe dir upwards, that contains a marker directory.
+        // Syrup puts the marker in the install root, several levels above the exe (<root>\app\<name>\main\<name>).
+        var processDir = string.IsNullOrEmpty(Environment.ProcessPath)
+            ? null
+            : Path.GetDirectoryName(Environment.ProcessPath);
+        var userRoot = FindRootWithMarkers(processDir, markers);
+        if (userRoot != null)
         {
-            var userRoot = FindUserRootWithMarkers(markers);
             return new SimpleEnvResult
             {
                 AppMode = SimpleAppMode.UserRoot,
@@ -241,52 +245,34 @@ public static class SimpleEnv
         return Path.Combine(Directory.GetCurrentDirectory(), "test-output");
     }
 
-    private static bool IsUserRootWithMarkers(string[] markers)
+    /// <summary>
+    /// Returns the nearest directory, starting at <paramref name="startDir"/> and going up,
+    /// that contains a subdirectory named like one of <paramref name="markers"/>; null when none does.
+    /// </summary>
+    public static string FindRootWithMarkers(string startDir, params string[] markers)
     {
-        var processPath = Environment.ProcessPath;
-        if (string.IsNullOrEmpty(processPath)) return false;
-        var processDir = Path.GetDirectoryName(processPath);
-        if (string.IsNullOrEmpty(processDir)) return false;
+        if (string.IsNullOrEmpty(startDir) || markers == null || markers.Length == 0) return null;
 
         try
         {
-            foreach (var dirName in markers)
+            var current = new DirectoryInfo(startDir);
+            while (current != null)
             {
-                if (Directory.GetDirectories(processDir, dirName).Length > 0)
+                foreach (var marker in markers)
                 {
-                    return true;
+                    if (Directory.Exists(Path.Combine(current.FullName, marker)))
+                    {
+                        return current.FullName;
+                    }
                 }
+                current = current.Parent;
             }
-            return false;
         }
-        catch
+        catch (Exception)
         {
-            return false;
-        }
-    }
-
-    private static string FindUserRootWithMarkers(string[] markers)
-    {
-        var processPath = Environment.ProcessPath;
-        if (string.IsNullOrEmpty(processPath)) return Directory.GetCurrentDirectory();
-
-        var processDir = Path.GetDirectoryName(processPath);
-        if (string.IsNullOrEmpty(processDir)) return Directory.GetCurrentDirectory();
-
-        var current = new DirectoryInfo(processDir);
-        while (current != null)
-        {
-            foreach (var dirName in markers)
-            {
-                var markerDirs = current.GetDirectories(dirName);
-                if (markerDirs.Length > 0)
-                {
-                    return current.FullName;
-                }
-            }
-            current = current.Parent;
+            // Invalid path or no access: treat as not found and let the caller fall back
         }
 
-        return Directory.GetCurrentDirectory();
+        return null;
     }
 }
