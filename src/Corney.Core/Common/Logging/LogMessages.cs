@@ -22,7 +22,6 @@ public static class LogMessages
 
     // Process Event IDs (2000-2999)
     public static readonly EventId ProcessStarted = new(2001, nameof(ProcessStarted));
-    public static readonly EventId ProcessStartFailed = new(2002, nameof(ProcessStartFailed));
     public static readonly EventId ProcessError = new(2003, nameof(ProcessError));
 
     // File Operations Event IDs (3000-3999)
@@ -31,24 +30,16 @@ public static class LogMessages
     public static readonly EventId FileChanged = new(3020, nameof(FileChanged));
     public static readonly EventId ConfigReloadSkipped = new(3030, nameof(ConfigReloadSkipped));
     public static readonly EventId ConfigReloadCompleted = new(3031, nameof(ConfigReloadCompleted));
-    public static readonly EventId FileMonitoringOptimized = new(3040, nameof(FileMonitoringOptimized));
     public static readonly EventId ServiceStopping = new(3050, nameof(ServiceStopping));
 
     // Application Event IDs (4000-4999)
     public static readonly EventId ApplicationStarted = new(4001, nameof(ApplicationStarted));
-    public static readonly EventId MinuteExecutionCompleted = new(4010, nameof(MinuteExecutionCompleted));
-    public static readonly EventId NextExecutionScheduled = new(4020, nameof(NextExecutionScheduled));
 
     // Error Recovery Event IDs (5000-5999)
     public static readonly EventId RetryPolicyExecuting = new(5001, nameof(RetryPolicyExecuting));
     public static readonly EventId RetryPolicySuccess = new(5002, nameof(RetryPolicySuccess));
     public static readonly EventId RetryPolicyFailed = new(5003, nameof(RetryPolicyFailed));
     public static readonly EventId RetryPolicyExhausted = new(5004, nameof(RetryPolicyExhausted));
-    public static readonly EventId CircuitBreakerOpen = new(5010, nameof(CircuitBreakerOpen));
-    public static readonly EventId CircuitBreakerHalfOpen = new(5011, nameof(CircuitBreakerHalfOpen));
-    public static readonly EventId CircuitBreakerClosed = new(5012, nameof(CircuitBreakerClosed));
-    public static readonly EventId FallbackExecuted = new(5020, nameof(FallbackExecuted));
-    public static readonly EventId HealthCheckFailed = new(5030, nameof(HealthCheckFailed));
 
     // CronService message templates
     public const string CronServiceStartedTemplate = "CronService started with version {AppVersion}";
@@ -67,8 +58,6 @@ public static class LogMessages
     public const string CronTickLateTemplate = "Cron tick {ScheduledTime} late by {LateBy}; skipped {SkippedMinutes} minute(s) and {SkippedJobs} job(s), resuming at {ResumeTime}";
 
     // Process message templates
-    public const string ProcessStartedTemplate = "Process started with ID {ProcessId} for command {Program}";
-    public const string ProcessStartFailedTemplate = "Failed to start process for command {Program}";
     public const string ProcessErrorTemplate = "Error starting process '{Program}': {ErrorMessage}";
 
     // File operations message templates
@@ -77,24 +66,16 @@ public static class LogMessages
     public const string FileChangedTemplate = "File change detected: {FilePath}";
     public const string ConfigReloadSkippedTemplate = "Configuration reload skipped: {Reason}";
     public const string ConfigReloadCompletedTemplate = "Configuration reloaded successfully in {DurationMs}ms";
-    public const string FileMonitoringOptimizedTemplate = "File monitoring optimized: {OptimizationType} with {DebounceMs}ms debounce";
     public const string ServiceStoppingTemplate = "Service stopping: {ServiceName}";
 
     // Application message templates
     public const string ApplicationStartedTemplate = "Application started: {ApplicationVersion}";
-    public const string MinuteExecutionCompletedTemplate = "Minute execution completed at {ExecutionTime}";
-    public const string NextExecutionScheduledTemplate = "Next execution scheduled in {DelaySeconds}s";
 
     // Error recovery message templates
     public const string RetryPolicyExecutingTemplate = "Executing {OperationName} with retry policy, attempt {Attempt}/{MaxAttempts}";
     public const string RetryPolicySuccessTemplate = "Retry policy succeeded for {OperationName} on attempt {Attempt}";
     public const string RetryPolicyFailedTemplate = "Retry policy failed for {OperationName} on attempt {Attempt}, retrying in {DelayMs}ms";
     public const string RetryPolicyExhaustedTemplate = "Retry policy exhausted for {OperationName} after {MaxAttempts} attempts";
-    public const string CircuitBreakerOpenTemplate = "Circuit breaker opened for {OperationName} after {FailureCount} failures";
-    public const string CircuitBreakerHalfOpenTemplate = "Circuit breaker half-open for {OperationName}, testing recovery";
-    public const string CircuitBreakerClosedTemplate = "Circuit breaker closed for {OperationName}, service recovered";
-    public const string FallbackExecutedTemplate = "Fallback executed for {OperationName}: {FallbackReason}";
-    public const string HealthCheckFailedTemplate = "Health check failed for {ComponentName}: {ErrorMessage}";
 
     // Performance monitoring events (5000-5999)
     public const int PerformanceMonitorStarted = 5001;

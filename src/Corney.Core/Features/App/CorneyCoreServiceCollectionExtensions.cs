@@ -1,5 +1,4 @@
 using System;
-using Corney.Common.Diagnostics;
 using Corney.Common.Performance;
 using Corney.Features.Cron;
 using Corney.Features.Monitors;
@@ -21,15 +20,11 @@ public static class CorneyCoreServiceCollectionExtensions
         services.AddSingleton(registry);
         services.AddSingleton<ICronService, CronService>();
         services.AddTransient<ProcessWrapper>();
-        services.AddHostedService<MinuteBackgroundService>();
         services.AddSingleton<ConfigFileMonitorService>();
         services.AddSingleton<FileWatchHelpers>();
         services.AddSingleton<CrontabFileParser>();
 
         services.AddPerformanceMonitoring();
-
-        services.AddSingleton<DevelopmentValidator>();
-        services.AddTransient(typeof(EnhancedLogger<>));
 
         services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(CronService).Assembly); });
 

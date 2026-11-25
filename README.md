@@ -14,7 +14,7 @@ Corney provides Windows users with the familiar Unix cron scheduling functionali
 - **📅 Standard Cron Syntax**: Full support for Unix crontab file format
 - **🔄 Real-time Monitoring**: Automatic detection of crontab file changes
 - **🖥️ System Tray Integration**: Unobtrusive background operation with status indicators
-- **📝 Structured Logging**: Comprehensive logging with Event IDs and correlation context
+- **📝 Structured Logging**: Comprehensive logging with Event IDs
 - **🏗️ Modern Architecture**: Feature-based organization with dependency injection
 
 ### Enterprise Ready
@@ -283,7 +283,6 @@ src/Corney.Core/       # Platform-independent logic (net10.0)
 │   ├── Processes/     # Command execution
 │   └── App/           # Application configuration
 ├── Common/
-│   ├── Diagnostics/   # Debug and validation tools
 │   ├── Performance/   # Monitoring and metrics
 │   ├── Resilience/    # Error recovery patterns
 │   └── Logging/       # Structured logging
@@ -315,7 +314,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 - Follow existing patterns and conventions
 - Add XML documentation for public APIs
 - Include unit tests for new functionality
-- Use structured logging with correlation IDs
+- Use structured logging with Event IDs
 
 ## 📊 Performance
 

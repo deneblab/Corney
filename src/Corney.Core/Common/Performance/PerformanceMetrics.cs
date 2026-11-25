@@ -209,8 +209,6 @@ public static class MetricCategories
 {
     public const string CronExecution = "cron.execution";
     public const string FileRead = "file.read";
+    public const string FileMonitoring = "file.monitoring";
     public const string ProcessExecution = "process.execution";
-    public const string ConfigurationLoad = "config.load";
-    public const string HealthCheck = "health.check";
-    public const string SystemResource = "system.resource";
 }

@@ -16,7 +16,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Corney.Features.Monitors;
 
-public class ConfigFileMonitorService : IConfigFileMonitor
+public class ConfigFileMonitorService : IDisposable
 {
     private readonly List<IDisposable> _cfd = [];
 
