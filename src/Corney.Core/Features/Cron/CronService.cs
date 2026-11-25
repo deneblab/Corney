@@ -264,42 +264,22 @@ public class CronService : ICronService, IDisposable
 
     private void RunJobs(List<CronDefinition> itemsToRun)
     {
-        if (itemsToRun.Count == 0)
-            return;
-
-        var executedJobs = 0;
-        var failedJobs = 0;
-
         foreach (var cronDefinition in itemsToRun)
+        {
+            // Per job, so a failure is counted for this job only (process.execution.<program> names it).
+            using var jobTimer = _performanceMonitor.StartTiming($"{MetricCategories.CronExecution}.job");
             try
             {
-                using var jobTimer = _performanceMonitor.StartTiming($"{MetricCategories.CronExecution}.job");
-
                 var processWrapper = _serviceProvider.GetRequiredService<ProcessWrapper>();
-                var t1 = Pharse.Tokenize2(cronDefinition.ExecutePart);
-                processWrapper.Start(t1);
-
-                executedJobs++;
+                processWrapper.Start(Pharse.Tokenize2(cronDefinition.ExecutePart));
                 jobTimer.MarkSuccess();
             }
             catch (Exception ex)
             {
+                jobTimer.MarkFailure();
                 _log.LogError(ex, "Failed to execute cron job: {ExecutePart}", cronDefinition.ExecutePart);
-                failedJobs++;
             }
-
-        _performanceMonitor.RecordMetric(new PerformanceMetrics
-        {
-            OperationName = $"{MetricCategories.CronExecution}.batch_jobs",
-            Duration = TimeSpan.Zero,
-            Success = failedJobs == 0,
-            AdditionalData = new Dictionary<string, object>
-            {
-                ["ExecutedJobs"] = executedJobs,
-                ["FailedJobs"] = failedJobs,
-                ["TotalJobs"] = itemsToRun.Count
-            }
-        });
+        }
     }
 
     /// <summary>

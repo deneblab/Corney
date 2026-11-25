@@ -26,12 +26,7 @@ public static class CorneyCoreServiceCollectionExtensions
         services.AddSingleton<FileWatchHelpers>();
         services.AddSingleton<CrontabFileParser>();
 
-        services.AddPerformanceMonitoring(options =>
-        {
-            options.ReportingInterval = TimeSpan.FromMinutes(15);
-            options.DashboardInterval = TimeSpan.FromHours(1);
-            options.EnableAutomaticReporting = true;
-        });
+        services.AddPerformanceMonitoring();
 
         services.AddSingleton<DevelopmentValidator>();
         services.AddTransient(typeof(EnhancedLogger<>));

@@ -38,7 +38,7 @@ internal sealed class CronHarness : IDisposable
         _provider = new ServiceCollection()
             .AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance)
             .AddSingleton(sp => new CrontabFileParser(NullLogger<CrontabFileParser>.Instance, sp))
-            .AddTransient(_ => new ProcessWrapper(processLog ?? NullLogger<ProcessWrapper>.Instance, null, RecordStart))
+            .AddTransient(_ => new ProcessWrapper(processLog ?? NullLogger<ProcessWrapper>.Instance, _performanceMonitor, RecordStart))
             .BuildServiceProvider();
 
         var registry = new CorneyRegistry(new SimpleEnvResult(), "config.json", new CorneyConfig());
@@ -47,6 +47,7 @@ internal sealed class CronHarness : IDisposable
     }
 
     public HistoricalScheduler Scheduler { get; }
+    public PerformanceMonitor PerformanceMonitor => _performanceMonitor;
     public CronService Service { get; }
 
     /// <summary>Programs for which starting throws (like a missing executable).</summary>

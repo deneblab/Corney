@@ -94,18 +94,18 @@ else {
     $lines = @(Get-Content -LiteralPath $log.FullName | Where-Object { $_ -match '^\S+ \S+ (WARN|ERROR|FATAL) ' })
     $missing = @($lines | Where-Object { $_ -like "*Failed to execute cron job*missing-program.exe*" })
     $late = @($lines | Where-Object { $_ -like "*Cron tick*late by*" })
-    # Expected: the deliberate missing-program job makes some batches "fail" in the metrics
-    # (cron.execution.batch_jobs). Every real job failure still has its own ERROR line.
-    $batchRate = @($lines | Where-Object { $_ -like "*High failure rate detected: cron.execution.batch_jobs*" })
+    # Expected: the deliberate missing-program job has a 0% success rate in the hourly report
+    # (process.execution.missing-program). Every real job failure has its own ERROR line.
+    $batchRate = @($lines | Where-Object { $_ -like "*High failure rate detected: process.execution.missing-program*" })
     $other = @($lines | Where-Object {
         $_ -notlike "*missing-program.exe*" -and $_ -notlike "*Cron tick*late by*" -and
-        $_ -notlike "*High failure rate detected: cron.execution.batch_jobs*" })
+        $_ -notlike "*High failure rate detected: process.execution.missing-program*" })
 
     if ($missing.Count -gt 0) { Report "missing program -> ERROR, Corney runs on" "PASS" "$($missing.Count) error(s) in $($log.Name)" }
     else { Report "missing program -> ERROR, Corney runs on" "WAIT" "no error yet (every 5 min)" }
 
     Write-Host ("INFO  {0,-42} {1}" -f "late ticks after sleep (CORNEY-011)", "$($late.Count) in $($log.Name)")
-    Write-Host ("INFO  {0,-42} {1}" -f "batch failure-rate warnings (expected)", "$($batchRate.Count) (caused by missing-program.exe)")
+    Write-Host ("INFO  {0,-42} {1}" -f "missing-program failure-rate warnings", "$($batchRate.Count) (expected)")
 
     if ($other.Count -eq 0) { Report "no other WARN/ERROR in Corney log" "PASS" $log.Name }
     else {
