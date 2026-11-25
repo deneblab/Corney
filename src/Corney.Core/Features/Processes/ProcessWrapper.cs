@@ -64,11 +64,15 @@ public class ProcessWrapper
             using var process = _startProcess(startInfo);
             var processId = process?.Id;
 
-            // The one Debug line per started job.
-            _log.LogDebug(LogMessages.ProcessStarted,
-                "Detached process started: {ProcessId} {Program} {Arguments} (in: {WorkingDirectory})",
-                processId?.ToString() ?? "(shell)", startInfo.FileName, startInfo.Arguments,
-                startInfo.WorkingDirectory);
+            // The one Debug line per started job; the working directory only when one is set.
+            if (string.IsNullOrEmpty(startInfo.WorkingDirectory))
+                _log.LogDebug(LogMessages.ProcessStarted, "Detached process started: {ProcessId} {Program} {Arguments}",
+                    processId?.ToString() ?? "(shell)", startInfo.FileName, startInfo.Arguments);
+            else
+                _log.LogDebug(LogMessages.ProcessStarted,
+                    "Detached process started: {ProcessId} {Program} {Arguments} (in: {WorkingDirectory})",
+                    processId?.ToString() ?? "(shell)", startInfo.FileName, startInfo.Arguments,
+                    startInfo.WorkingDirectory);
 
             timer?.MarkSuccess();
             return processId;
