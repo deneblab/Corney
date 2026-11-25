@@ -22,7 +22,7 @@ public class PerformanceMonitor : IDisposable
     private readonly Timer _reportingTimer;
     private readonly Timer _resourceMonitorTimer;
     private readonly int _maxRecentMetrics = 1000;
-    private readonly TimeSpan _reportingInterval = TimeSpan.FromMinutes(5);
+    private readonly TimeSpan _reportingInterval = TimeSpan.FromHours(1);
     private readonly TimeSpan _resourceMonitorInterval = TimeSpan.FromMinutes(1);
     private bool _disposed = false;
 
@@ -57,12 +57,10 @@ public class PerformanceMonitor : IDisposable
         var counter = _counters.GetOrAdd(metric.OperationName, name => new PerformanceCounter(name));
         counter.RecordExecution(metric.Duration, metric.Success);
 
-        // Log detailed metrics for critical operations
-        if (ShouldLogDetailedMetric(metric))
-        {
-            _logger.LogDebug("Performance metric recorded: {OperationName} completed in {Duration}ms, Success: {Success}, Memory: {MemoryMB}MB",
-                metric.OperationName, metric.Duration.TotalMilliseconds, metric.Success, metric.MemoryUsed / 1024 / 1024);
-        }
+        // Debug only for failed or slow operations; routine metrics (every tick, every job) are Trace.
+        _logger.Log(MetricLogLevel(metric),
+            "Performance metric recorded: {OperationName} completed in {Duration}ms, Success: {Success}, Memory: {MemoryMB}MB",
+            metric.OperationName, metric.Duration.TotalMilliseconds, metric.Success, metric.MemoryUsed / 1024 / 1024);
     }
 
     /// <summary>
@@ -180,19 +178,9 @@ public class PerformanceMonitor : IDisposable
         _logger.LogInformation("Performance counters reset");
     }
 
-    private bool ShouldLogDetailedMetric(PerformanceMetrics metric)
+    internal static LogLevel MetricLogLevel(PerformanceMetrics metric)
     {
-        // Log if execution took longer than threshold
-        if (metric.Duration.TotalSeconds > 5)
-            return true;
-
-        // Log if operation failed
-        if (!metric.Success)
-            return true;
-
-        // Log critical operations
-        return metric.OperationName.Contains("cron", StringComparison.OrdinalIgnoreCase) ||
-               metric.OperationName.Contains("process", StringComparison.OrdinalIgnoreCase);
+        return !metric.Success || metric.Duration.TotalSeconds > 5 ? LogLevel.Debug : LogLevel.Trace;
     }
 
     private void ReportPerformanceMetrics(object? state)
@@ -239,7 +227,8 @@ public class PerformanceMonitor : IDisposable
             var metrics = SystemResourceMetrics.GetCurrent();
             
             // Log system resource usage
-            _logger.LogDebug("System resources: Memory {MemoryMB}MB, Threads {ThreadCount}, Handles {HandleCount}",
+            // Every minute: Trace only. Threshold breaches are logged as warnings below.
+            _logger.LogTrace("System resources: Memory {MemoryMB}MB, Threads {ThreadCount}, Handles {HandleCount}",
                 metrics.WorkingSet / 1024 / 1024, metrics.ThreadCount, metrics.HandleCount);
 
             // Check for resource issues

@@ -27,7 +27,8 @@ internal sealed class CronHarness : IDisposable
     private readonly List<JobStart> _starts = new();
     private readonly string _tempDir;
 
-    public CronHarness(DateTime localStart)
+    public CronHarness(DateTime localStart, ILogger<CronService> cronLog = null,
+        ILogger<ProcessWrapper> processLog = null)
     {
         _tempDir = Path.Combine(Path.GetTempPath(), "corney-spec-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_tempDir);
@@ -37,11 +38,11 @@ internal sealed class CronHarness : IDisposable
         _provider = new ServiceCollection()
             .AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance)
             .AddSingleton(sp => new CrontabFileParser(NullLogger<CrontabFileParser>.Instance, sp))
-            .AddTransient(_ => new ProcessWrapper(NullLogger<ProcessWrapper>.Instance, null, RecordStart))
+            .AddTransient(_ => new ProcessWrapper(processLog ?? NullLogger<ProcessWrapper>.Instance, null, RecordStart))
             .BuildServiceProvider();
 
         var registry = new CorneyRegistry(new SimpleEnvResult(), "config.json", new CorneyConfig());
-        Service = new CronService(NullLogger<CronService>.Instance, _provider, registry, _performanceMonitor,
+        Service = new CronService(cronLog ?? NullLogger<CronService>.Instance, _provider, registry, _performanceMonitor,
             Scheduler);
     }
 

@@ -52,11 +52,8 @@ public class ProcessWrapper
 
         var startInfo = CreateStartInfo(item);
 
-        _log.LogDebug("Executing: {Program}", startInfo.FileName);
-        _log.LogDebug("Parameters: {Arguments}", startInfo.Arguments);
-        _log.LogDebug("In directory: {WorkingDirectory}", startInfo.WorkingDirectory);
-        if (startInfo.UseShellExecute)
-            _log.LogDebug("Starting through the Windows shell: {Program}", startInfo.FileName);
+        _log.LogTrace("Starting {Program} {Arguments} in {WorkingDirectory} (shell: {UseShellExecute})",
+            startInfo.FileName, startInfo.Arguments, startInfo.WorkingDirectory, startInfo.UseShellExecute);
 
         var operationName =
             $"{MetricCategories.ProcessExecution}.{Path.GetFileNameWithoutExtension(item.Program)}";
@@ -67,8 +64,11 @@ public class ProcessWrapper
             using var process = _startProcess(startInfo);
             var processId = process?.Id;
 
-            _log.LogDebug(LogMessages.ProcessStarted, "Detached process started: {ProcessId} {Program}",
-                processId?.ToString() ?? "(shell)", startInfo.FileName);
+            // The one Debug line per started job.
+            _log.LogDebug(LogMessages.ProcessStarted,
+                "Detached process started: {ProcessId} {Program} {Arguments} (in: {WorkingDirectory})",
+                processId?.ToString() ?? "(shell)", startInfo.FileName, startInfo.Arguments,
+                startInfo.WorkingDirectory);
 
             timer?.MarkSuccess();
             return processId;

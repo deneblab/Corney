@@ -222,7 +222,9 @@ public class CronService : ICronService, IDisposable
                 return;
             }
 
-            _log.LogDebug(LogMessages.CronExecutionStarted, LogMessages.CronExecutionStartedTemplate,
+            // One Debug line per tick that starts jobs; an idle minute is Trace only.
+            _log.Log(_itemsToRunOnNextMinute.Count > 0 ? LogLevel.Debug : LogLevel.Trace,
+                LogMessages.CronExecutionStarted, LogMessages.CronExecutionStartedTemplate,
                 marker, date.ToLocalTime(), _itemsToRunOnNextMinute.Count);
 
             itemsToRun = _itemsToRunOnNextMinute.ToList();
@@ -245,8 +247,8 @@ public class CronService : ICronService, IDisposable
 
             // Plan the next minute before starting jobs, so a slow job cannot delay or skip it.
             var nextMarker = Guid.NewGuid();
-            _log.LogDebug("Starting next cron execution round");
-            _log.LogDebug(LogMessages.CronExecutionCompleted, LogMessages.CronExecutionCompletedTemplate, marker,
+            _log.LogTrace("Starting next cron execution round");
+            _log.LogTrace(LogMessages.CronExecutionCompleted, LogMessages.CronExecutionCompletedTemplate, marker,
                 nextMarker);
             GenerateNext(next, nextMarker);
             ScheduleNext(next, nextMarker, generation);
@@ -308,7 +310,7 @@ public class CronService : ICronService, IDisposable
         if (generation != _generation)
             return;
 
-        _log.LogDebug(LogMessages.CronNextScheduled, LogMessages.CronNextScheduledTemplate, marker, next.ToLocalTime());
+        _log.LogTrace(LogMessages.CronNextScheduled, LogMessages.CronNextScheduledTemplate, marker, next.ToLocalTime());
         _nextSchedule?.Dispose();
         _nextSchedule = Observable
             .Timer(new DateTimeOffset(next), _scheduler)
@@ -318,7 +320,7 @@ public class CronService : ICronService, IDisposable
     private void GenerateNext(DateTime next, Guid marker)
     {
         // Dates in cron file are in "local time". We should convert next to local time. 
-        _log.LogDebug("Starting GenerateNext operation");
+        _log.LogTrace("Starting GenerateNext operation");
         var nextLocal = next.ToLocalTime();
         var counter = 0;
         const int max = 10;
@@ -327,7 +329,7 @@ public class CronService : ICronService, IDisposable
         {
             counter++;
             if (counter == max) break;
-            _log.LogDebug("GenerateNext attempt {Attempt}", counter);
+            _log.LogTrace("GenerateNext attempt {Attempt}", counter);
             try
             {
                 // Read operation - use read lock for accessing _cronDefinitions
@@ -371,7 +373,7 @@ public class CronService : ICronService, IDisposable
             }
         }
 
-        _log.LogDebug(LogMessages.CronTasksScheduled, LogMessages.CronTasksScheduledTemplate,
+        _log.LogTrace(LogMessages.CronTasksScheduled, LogMessages.CronTasksScheduledTemplate,
             marker, nextLocal, _itemsToRunOnNextMinute.Count);
     }
 
