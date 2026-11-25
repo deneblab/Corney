@@ -18,6 +18,7 @@ public static class LogMessages
     public static readonly EventId CronTasksScheduled = new(1040, nameof(CronTasksScheduled));
     public static readonly EventId CronLockTimeout = new(1050, nameof(CronLockTimeout));
     public static readonly EventId CronGenerateNextError = new(1060, nameof(CronGenerateNextError));
+    public static readonly EventId CronTickLate = new(1070, nameof(CronTickLate));
 
     // Process Event IDs (2000-2999)
     public static readonly EventId ProcessStarted = new(2001, nameof(ProcessStarted));
@@ -63,6 +64,7 @@ public static class LogMessages
     
     public const string CronLockTimeoutTemplate = "Failed to acquire {LockType} lock for {Operation} within timeout";
     public const string CronGenerateNextErrorTemplate = "Error generating next cron jobs on attempt {Attempt}: {ErrorMessage}";
+    public const string CronTickLateTemplate = "Cron tick {ScheduledTime} late by {LateBy}; skipped {SkippedMinutes} minute(s) and {SkippedJobs} job(s), resuming at {ResumeTime}";
 
     // Process message templates
     public const string ProcessStartedTemplate = "Process started with ID {ProcessId} for command {Program}";

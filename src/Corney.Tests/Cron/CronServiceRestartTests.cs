@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Linq;
 using System.Reactive.Concurrency;
 using Corney.Common.Logging;
@@ -7,8 +6,8 @@ using Corney.Common.Performance;
 using Corney.Common.SimpleEnv;
 using Corney.Features.App;
 using Corney.Features.Cron;
+using Corney.Tests.TestSupport;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -114,31 +113,5 @@ public class CronServiceRestartTests : IDisposable
     private static CorneyRegistry CreateRegistry()
     {
         return new CorneyRegistry(new SimpleEnvResult(), "config.json", new CorneyConfig());
-    }
-
-    private sealed class CountingLogger<T> : ILogger<T>
-    {
-        private readonly ConcurrentDictionary<int, int> _counts = new();
-
-        public IDisposable BeginScope<TState>(TState state)
-        {
-            return null;
-        }
-
-        public bool IsEnabled(LogLevel logLevel)
-        {
-            return true;
-        }
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception,
-            Func<TState, Exception, string> formatter)
-        {
-            _counts.AddOrUpdate(eventId.Id, 1, (_, c) => c + 1);
-        }
-
-        public int Count(EventId eventId)
-        {
-            return _counts.TryGetValue(eventId.Id, out var c) ? c : 0;
-        }
     }
 }

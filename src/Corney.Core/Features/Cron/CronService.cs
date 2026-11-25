@@ -37,6 +37,9 @@ public class CronService : ICronService, IDisposable
     private readonly ReaderWriterLockSlim _stateLock = new(LockRecursionPolicy.SupportsRecursion);
     private readonly IScheduler _scheduler;
 
+    // A tick that fires later than this is treated as missed (sleep, suspended VM, clock jump).
+    private static readonly TimeSpan MaxTickDelay = TimeSpan.FromMinutes(1);
+
     // Guarded by _stateLock (write). Every Start/Restart/Stop bumps the generation; a schedule chain
     // started for an older generation stops at its next tick, so only one chain is ever active.
     private long _generation;
@@ -225,8 +228,22 @@ public class CronService : ICronService, IDisposable
             itemsToRun = _itemsToRunOnNextMinute.ToList();
             _itemsToRunOnNextMinute.Clear();
 
-            // Plan the next minute before starting jobs, so a slow job cannot delay or skip it.
+            var now = _scheduler.Now.UtcDateTime;
             var next = date.AddMinutes(1);
+            var lateBy = now - date;
+            if (lateBy > MaxTickDelay)
+            {
+                // Sleep/hibernation, a suspended VM or a clock jump. Like cron, do not catch up:
+                // skip this tick's jobs and continue from the current minute.
+                var resumeAt = now.RoundDown(TimeSpan.FromMinutes(1)).AddMinutes(1);
+                _log.LogWarning(LogMessages.CronTickLate, LogMessages.CronTickLateTemplate,
+                    date.ToLocalTime(), lateBy, (int)(resumeAt - date).TotalMinutes, itemsToRun.Count,
+                    resumeAt.ToLocalTime());
+                itemsToRun.Clear();
+                next = resumeAt;
+            }
+
+            // Plan the next minute before starting jobs, so a slow job cannot delay or skip it.
             var nextMarker = Guid.NewGuid();
             _log.LogDebug("Starting next cron execution round");
             _log.LogDebug(LogMessages.CronExecutionCompleted, LogMessages.CronExecutionCompletedTemplate, marker,
