@@ -34,15 +34,16 @@ Main build targets:
 ## Architecture
 
 ### Project Structure
-- **Corney** (main executable): Windows Forms application with system tray integration targeting net10.0-windows
-- **Corney.Tests** (tests): xUnit test suite targeting net10.0-windows  
+- **Corney** (main executable): thin Windows Forms shell targeting net10.0-windows — `App`, `CorneyContext` (tray), `AppBuilder` (bootstrap, NLog, DI), `ConfigFileMenuService`, `FileOperationHelper`, resources
+- **Corney.Core** (library): all platform-independent logic targeting net10.0 — `Features/` (Cron, Monitors, Processes, App config/registry) and `Common/`; services registered by `AddCorneyCore(registry)`
+- **Corney.Tests** (tests): xUnit test suite targeting net10.0, references only Corney.Core (runs on Linux too)
 - **build** (Fallout): Build automation and packaging
 - **scripts**: PowerShell installer for automated deployment
 
 ### Core Components
 
 #### Feature-Based Architecture
-The codebase follows feature-based organization in `src/Corney/Features/`:
+The codebase follows feature-based organization in `src/Corney.Core/Features/`:
 
 - **Cron**: Core scheduling functionality
   - `CronService`: Main scheduling engine using Cronos library
@@ -69,7 +70,7 @@ Uses a sophisticated bootstrap pattern:
 #### Dependency Injection
 - **Container**: Microsoft.Extensions.Hosting with built-in DI container
 - **Mediator**: MediatR for CQRS pattern 
-- **Services**: Registered in `AppBuilder.CreateHost()` method
+- **Services**: Core services in `AddCorneyCore()` (`Corney.Core/Features/App/CorneyCoreServiceCollectionExtensions.cs`); UI services in `AppBuilder.ConfigureServices()`
 
 ### Key Dependencies
 - **Cronos 0.11.0**: Cron expression parsing and scheduling

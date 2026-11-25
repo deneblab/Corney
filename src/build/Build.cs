@@ -74,13 +74,6 @@ class Build : FalloutBuild
                 return;
             }
 
-            // Check if running on Windows since the test project targets net10.0-windows
-            if (!OperatingSystem.IsWindows())
-            {
-                Log.Warning("Skipping tests - Windows Forms tests require Windows runtime");
-                return;
-            }
-
             var p = CorneyWinProject;
             if (p == null) return;
 

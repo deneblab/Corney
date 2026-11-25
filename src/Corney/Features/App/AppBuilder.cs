@@ -111,34 +111,12 @@ public class AppBuilder
 
     internal static void ConfigureServices(IServiceCollection services, CorneyRegistry registry)
     {
-        services.AddSingleton(registry);
-        services.AddSingleton<ICronService, CronService>();
-        services.AddTransient<ProcessWrapper>();
-        services.AddHostedService<MinuteBackgroundService>();
-        services.AddSingleton<ConfigFileMonitorService>();
-        services.AddSingleton<FileWatchHelpers>();
-        services.AddSingleton<CrontabFileParser>();
-        services.AddSingleton<CorneyContext>();
+        services.AddCorneyCore(registry);
 
-        // Add config file menu services
+        // Windows UI: tray context and config file menu
+        services.AddSingleton<CorneyContext>();
         services.AddTransient<IFileOperationHelper, FileOperationHelper>();
         services.AddTransient<IConfigFileMenuService, ConfigFileMenuService>();
-
-        // Add performance monitoring services
-        services.AddPerformanceMonitoring(options =>
-        {
-            options.ReportingInterval = TimeSpan.FromMinutes(15);
-            options.DashboardInterval = TimeSpan.FromHours(1);
-            options.EnableAutomaticReporting = true;
-        });
-
-        // Add development and diagnostics services
-        services.AddSingleton<DevelopmentValidator>();
-
-        // Enhanced logging with correlation context
-        services.AddTransient(typeof(EnhancedLogger<>));
-
-        services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(AppBuilder).Assembly); });
     }
 
     private static LoggingConfiguration CreateLogConfiguration(string logDir)

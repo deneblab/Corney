@@ -275,7 +275,8 @@ dev/app.vs/log/
 Corney follows a feature-based architecture with clear separation of concerns:
 
 ```
-src/Corney/
+src/Corney/            # Windows shell (net10.0-windows): tray, menu, bootstrap, NLog
+src/Corney.Core/       # Platform-independent logic (net10.0)
 ├── Features/
 │   ├── Cron/          # Core scheduling engine
 │   ├── Monitors/      # File system monitoring
@@ -286,7 +287,7 @@ src/Corney/
 │   ├── Performance/   # Monitoring and metrics
 │   ├── Resilience/    # Error recovery patterns
 │   └── Logging/       # Structured logging
-└── Properties/        # Assembly information
+src/Corney.Tests/      # xUnit tests (net10.0, references Corney.Core)
 ```
 
 ### Key Technologies

@@ -104,7 +104,7 @@ public class CronServiceRestartTests : IDisposable
         // Was Transient: every CrontabFileIsChanged built a new CronHandlers with a new CronService,
         // whose Restart could not stop the schedule of the previous instance.
         var services = new ServiceCollection();
-        AppBuilder.ConfigureServices(services, CreateRegistry());
+        services.AddCorneyCore(CreateRegistry());
 
         var descriptor = services.Single(d => d.ServiceType == typeof(ICronService));
 
