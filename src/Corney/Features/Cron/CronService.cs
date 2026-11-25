@@ -2,10 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
-using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using Corney.Common.Extensions;
 using Corney.Common.Logging;
 using Corney.Common.Performance;
@@ -37,15 +35,27 @@ public class CronService : ICronService, IDisposable
     private readonly PerformanceMonitor _performanceMonitor;
     private readonly IServiceProvider _serviceProvider;
     private readonly ReaderWriterLockSlim _stateLock = new(LockRecursionPolicy.SupportsRecursion);
+    private readonly IScheduler _scheduler;
+
+    // Guarded by _stateLock (write). Every Start/Restart/Stop bumps the generation; a schedule chain
+    // started for an older generation stops at its next tick, so only one chain is ever active.
+    private long _generation;
     private IDisposable _nextSchedule;
 
     public CronService(ILogger<CronService> log, IServiceProvider serviceProvider, CorneyRegistry corneyRegistry,
         PerformanceMonitor performanceMonitor)
+        : this(log, serviceProvider, corneyRegistry, performanceMonitor, Scheduler.Default)
+    {
+    }
+
+    internal CronService(ILogger<CronService> log, IServiceProvider serviceProvider, CorneyRegistry corneyRegistry,
+        PerformanceMonitor performanceMonitor, IScheduler scheduler)
     {
         _log = log;
         _serviceProvider = serviceProvider;
         _corneyRegistry = corneyRegistry;
         _performanceMonitor = performanceMonitor;
+        _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
     }
 
     /// <summary>
@@ -76,40 +86,74 @@ public class CronService : ICronService, IDisposable
     {
         _log.LogInformation(LogMessages.CronServiceRestarted, LogMessages.CronServiceRestartedTemplate,
             _corneyRegistry.AppVersion.SemVer);
-        var c = _nextSchedule as CompositeDisposable;
-        c?.Dispose();
-
-
-        _nextSchedule?.Dispose();
         InitWork(cronFiles);
     }
 
     public void Stop()
     {
         _log.LogInformation(LogMessages.CronServiceStopped, LogMessages.CronServiceStoppedTemplate);
-        _nextSchedule?.Dispose();
+        if (!_stateLock.TryEnterWriteLock(TimeSpan.FromSeconds(30)))
+        {
+            _log.LogError(LogMessages.CronLockTimeout, LogMessages.CronLockTimeoutTemplate, "write", "Stop");
+            return;
+        }
+
+        try
+        {
+            CancelSchedule();
+        }
+        finally
+        {
+            _stateLock.ExitWriteLock();
+        }
     }
 
     public void Dispose()
     {
         _log.LogDebug("Disposing CronService");
-        _nextSchedule?.Dispose();
+        Stop();
         _stateLock?.Dispose();
+    }
+
+    /// <summary>
+    ///     Invalidates the active schedule chain and returns the new generation. Caller holds the write lock.
+    /// </summary>
+    private long CancelSchedule()
+    {
+        _generation++;
+        _nextSchedule?.Dispose();
+        _nextSchedule = null;
+        return _generation;
     }
 
     private void InitWork(string[] cronFiles)
     {
-        var marker = Guid.NewGuid();
-        CreateListDefinitions(cronFiles);
-        var start = DateTime.UtcNow;
-        var startDown = start.RoundDown(TimeSpan.FromSeconds(60));
-        var next = startDown.AddMinutes(1);
-        _log.LogInformation("Cron will be processing items from local time {NextExecutionTime}", next.ToLocalTime());
-        WriteTasksToLog();
-        _log.LogDebug("*** New round  ***");
-        _log.LogDebug("InitWork started with marker {Marker}", marker);
-        GenerateNext(next, marker);
-        ScheduleNext(next, marker);
+        if (!_stateLock.TryEnterWriteLock(TimeSpan.FromSeconds(30)))
+        {
+            _log.LogError(LogMessages.CronLockTimeout, LogMessages.CronLockTimeoutTemplate, "write", "InitWork");
+            return;
+        }
+
+        try
+        {
+            var generation = CancelSchedule();
+            var marker = Guid.NewGuid();
+            CreateListDefinitions(cronFiles);
+            var start = _scheduler.Now.UtcDateTime;
+            var startDown = start.RoundDown(TimeSpan.FromSeconds(60));
+            var next = startDown.AddMinutes(1);
+            _log.LogInformation("Cron will be processing items from local time {NextExecutionTime}",
+                next.ToLocalTime());
+            WriteTasksToLog();
+            _log.LogDebug("*** New round  ***");
+            _log.LogDebug("InitWork started with marker {Marker} (generation {Generation})", marker, generation);
+            GenerateNext(next, marker);
+            ScheduleNext(next, marker, generation);
+        }
+        finally
+        {
+            _stateLock.ExitWriteLock();
+        }
     }
 
 
@@ -152,12 +196,9 @@ public class CronService : ICronService, IDisposable
     }
 
 
-    private void Execute(DateTime date, Guid marker)
+    private void Execute(DateTime date, Guid marker, long generation)
     {
         using var executionTimer = _performanceMonitor.StartTiming($"{MetricCategories.CronExecution}.batch");
-
-        _log.LogDebug(LogMessages.CronExecutionStarted, LogMessages.CronExecutionStartedTemplate,
-            marker, date.ToLocalTime(), _itemsToRunOnNextMinute.Count);
 
         if (!_stateLock.TryEnterWriteLock(TimeSpan.FromSeconds(30)))
         {
@@ -166,84 +207,95 @@ public class CronService : ICronService, IDisposable
             return;
         }
 
+        List<CronDefinition> itemsToRun;
         try
         {
-            if (_itemsToRunOnNextMinute.Any())
+            if (generation != _generation)
             {
-                var executedJobs = 0;
-                var failedJobs = 0;
-
-                foreach (var cronDefinition in _itemsToRunOnNextMinute)
-                    try
-                    {
-                        using var jobTimer = _performanceMonitor.StartTiming($"{MetricCategories.CronExecution}.job");
-
-                        var processWrapper = _serviceProvider.GetRequiredService<ProcessWrapper>();
-                        var t1 = Pharse.Tokenize2(cronDefinition.ExecutePart);
-                        processWrapper.Start(t1);
-
-                        executedJobs++;
-                        jobTimer.MarkSuccess();
-                    }
-                    catch (Exception ex)
-                    {
-                        _log.LogError(ex, "Failed to execute cron job: {ExecutePart}", cronDefinition.ExecutePart);
-                        failedJobs++;
-                    }
-
-                // Record batch execution metrics
-                _performanceMonitor.RecordMetric(new PerformanceMetrics
-                {
-                    OperationName = $"{MetricCategories.CronExecution}.batch_jobs",
-                    Duration = TimeSpan.Zero, // Will be set by timer
-                    Success = failedJobs == 0,
-                    AdditionalData = new Dictionary<string, object>
-                    {
-                        ["ExecutedJobs"] = executedJobs,
-                        ["FailedJobs"] = failedJobs,
-                        ["TotalJobs"] = _itemsToRunOnNextMinute.Count
-                    }
-                });
-
-                _itemsToRunOnNextMinute.Clear();
+                // Restart/Stop happened after this tick was scheduled: this chain is obsolete.
+                _log.LogDebug("Stale cron schedule {Marker} (generation {Generation}, current {CurrentGeneration}) stopped",
+                    marker, generation, _generation);
+                executionTimer.MarkSuccess();
+                return;
             }
 
+            _log.LogDebug(LogMessages.CronExecutionStarted, LogMessages.CronExecutionStartedTemplate,
+                marker, date.ToLocalTime(), _itemsToRunOnNextMinute.Count);
+
+            itemsToRun = _itemsToRunOnNextMinute.ToList();
+            _itemsToRunOnNextMinute.Clear();
+
+            // Plan the next minute before starting jobs, so a slow job cannot delay or skip it.
             var next = date.AddMinutes(1);
             var nextMarker = Guid.NewGuid();
             _log.LogDebug("Starting next cron execution round");
             _log.LogDebug(LogMessages.CronExecutionCompleted, LogMessages.CronExecutionCompletedTemplate, marker,
                 nextMarker);
             GenerateNext(next, nextMarker);
-            ScheduleNext(next, nextMarker);
-
-            executionTimer.MarkSuccess();
+            ScheduleNext(next, nextMarker, generation);
         }
         finally
         {
             _stateLock.ExitWriteLock();
         }
+
+        RunJobs(itemsToRun);
+        executionTimer.MarkSuccess();
     }
 
-    private void ScheduleNext(DateTime next, Guid marker)
+    private void RunJobs(List<CronDefinition> itemsToRun)
     {
-        _log.LogDebug(LogMessages.CronNextScheduled, LogMessages.CronNextScheduledTemplate, marker, next.ToLocalTime());
-        var dateTimeOffset = new DateTimeOffset(next);
-        if (_nextSchedule != null)
-        {
-            var c = _nextSchedule as CompositeDisposable;
-            c?.Dispose();
-        }
+        if (itemsToRun.Count == 0)
+            return;
 
+        var executedJobs = 0;
+        var failedJobs = 0;
 
-        _nextSchedule = Observable
-            .Timer(dateTimeOffset, Scheduler.CurrentThread)
-            .Timestamp()
-            .FirstAsync()
-            .Subscribe(x =>
+        foreach (var cronDefinition in itemsToRun)
+            try
             {
-                Task.Run(() => { Execute(next, marker); });
-                //Execute(next);
-            });
+                using var jobTimer = _performanceMonitor.StartTiming($"{MetricCategories.CronExecution}.job");
+
+                var processWrapper = _serviceProvider.GetRequiredService<ProcessWrapper>();
+                var t1 = Pharse.Tokenize2(cronDefinition.ExecutePart);
+                processWrapper.Start(t1);
+
+                executedJobs++;
+                jobTimer.MarkSuccess();
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Failed to execute cron job: {ExecutePart}", cronDefinition.ExecutePart);
+                failedJobs++;
+            }
+
+        _performanceMonitor.RecordMetric(new PerformanceMetrics
+        {
+            OperationName = $"{MetricCategories.CronExecution}.batch_jobs",
+            Duration = TimeSpan.Zero,
+            Success = failedJobs == 0,
+            AdditionalData = new Dictionary<string, object>
+            {
+                ["ExecutedJobs"] = executedJobs,
+                ["FailedJobs"] = failedJobs,
+                ["TotalJobs"] = itemsToRun.Count
+            }
+        });
+    }
+
+    /// <summary>
+    ///     Schedules the tick at <paramref name="next" />. Caller holds the write lock.
+    /// </summary>
+    private void ScheduleNext(DateTime next, Guid marker, long generation)
+    {
+        if (generation != _generation)
+            return;
+
+        _log.LogDebug(LogMessages.CronNextScheduled, LogMessages.CronNextScheduledTemplate, marker, next.ToLocalTime());
+        _nextSchedule?.Dispose();
+        _nextSchedule = Observable
+            .Timer(new DateTimeOffset(next), _scheduler)
+            .Subscribe(_ => Execute(next, marker, generation));
     }
 
     private void GenerateNext(DateTime next, Guid marker)
@@ -278,7 +330,7 @@ public class CronService : ICronService, IDisposable
                         {
                             // ReSharper disable once CommentTypo
                             // Read more: https://github.com/HangfireIO/Cronos#working-with-time-zones
-                            var n1 = x.Expression.GetNextOccurrence(DateTimeOffset.Now, TimeZoneInfo.Local);
+                            var n1 = x.Expression.GetNextOccurrence(_scheduler.Now, TimeZoneInfo.Local);
                             var nextLocalTime = n1?.DateTime;
                             return nextLocalTime == nextLocal;
                         })

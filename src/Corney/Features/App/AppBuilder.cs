@@ -97,37 +97,7 @@ public class AppBuilder
     {
         var host = Host.CreateDefaultBuilder(args)
             // Optionally, register additional services such as your WinForms main form.
-            .ConfigureServices(services =>
-            {
-                services.AddSingleton(registry);
-                services.AddTransient<ICronService, CronService>();
-                services.AddTransient<ProcessWrapper>();
-                services.AddHostedService<MinuteBackgroundService>();
-                services.AddSingleton<ConfigFileMonitorService>();
-                services.AddSingleton<FileWatchHelpers>();
-                services.AddSingleton<CrontabFileParser>();
-                services.AddSingleton<CorneyContext>();
-
-                // Add config file menu services
-                services.AddTransient<IFileOperationHelper, FileOperationHelper>();
-                services.AddTransient<IConfigFileMenuService, ConfigFileMenuService>();
-
-                // Add performance monitoring services
-                services.AddPerformanceMonitoring(options =>
-                {
-                    options.ReportingInterval = TimeSpan.FromMinutes(15);
-                    options.DashboardInterval = TimeSpan.FromHours(1);
-                    options.EnableAutomaticReporting = true;
-                });
-
-                // Add development and diagnostics services
-                services.AddSingleton<DevelopmentValidator>();
-
-                // Enhanced logging with correlation context
-                services.AddTransient(typeof(EnhancedLogger<>));
-
-                services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(AppBuilder).Assembly); });
-            })
+            .ConfigureServices(services => ConfigureServices(services, registry))
             .ConfigureLogging(l =>
             {
                 l.ClearProviders();
@@ -137,6 +107,38 @@ public class AppBuilder
             .Build();
 
         return host;
+    }
+
+    internal static void ConfigureServices(IServiceCollection services, CorneyRegistry registry)
+    {
+        services.AddSingleton(registry);
+        services.AddSingleton<ICronService, CronService>();
+        services.AddTransient<ProcessWrapper>();
+        services.AddHostedService<MinuteBackgroundService>();
+        services.AddSingleton<ConfigFileMonitorService>();
+        services.AddSingleton<FileWatchHelpers>();
+        services.AddSingleton<CrontabFileParser>();
+        services.AddSingleton<CorneyContext>();
+
+        // Add config file menu services
+        services.AddTransient<IFileOperationHelper, FileOperationHelper>();
+        services.AddTransient<IConfigFileMenuService, ConfigFileMenuService>();
+
+        // Add performance monitoring services
+        services.AddPerformanceMonitoring(options =>
+        {
+            options.ReportingInterval = TimeSpan.FromMinutes(15);
+            options.DashboardInterval = TimeSpan.FromHours(1);
+            options.EnableAutomaticReporting = true;
+        });
+
+        // Add development and diagnostics services
+        services.AddSingleton<DevelopmentValidator>();
+
+        // Enhanced logging with correlation context
+        services.AddTransient(typeof(EnhancedLogger<>));
+
+        services.AddMediatR(cfg => { cfg.RegisterServicesFromAssembly(typeof(AppBuilder).Assembly); });
     }
 
     private static LoggingConfiguration CreateLogConfiguration(string logDir)
