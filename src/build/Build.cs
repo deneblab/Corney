@@ -156,9 +156,47 @@ class Build : FalloutBuild
                     new { CrontabFiles = new[] { crontabFile.ToString() } },
                     new System.Text.Json.JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
 
+            AddStandaloneTestCases(outDir, cfgDir, configFile);
+
             Log.Information($"Standalone ready: {outDir / "Corney.exe"}");
             Log.Information($"Config: {configFile}");
         });
+
+    // CORNEY-012: test cases run by the standalone Corney itself. Scripts from dev-tests/standalone go to
+    // "test env" (a path with a space on purpose); crontab.tests.txt is generated and added to config.json.
+    void AddStandaloneTestCases(AbsolutePath outDir, AbsolutePath cfgDir, AbsolutePath configFile)
+    {
+        var source = RootDirectory / "dev-tests" / "standalone";
+        var testDir = outDir / "test env";
+        testDir.CreateDirectory();
+
+        foreach (var script in Directory.GetFiles(source, "*.ps1"))
+            File.Copy(script, testDir / Path.GetFileName(script), true);
+
+        var template = File.ReadAllText(source / "crontab.tests.template.txt");
+        var crontab = template.Replace("\r\n", "\n").Replace("\n", "\r\n").Replace("{{TEST_DIR}}", testDir.ToString());
+        var testCrontab = cfgDir / "crontab.tests.txt";
+        File.WriteAllText(testCrontab, crontab, new UTF8Encoding(false));
+
+        var config = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(configFile))!.AsObject();
+        var files = config["CrontabFiles"] as System.Text.Json.Nodes.JsonArray ?? new System.Text.Json.Nodes.JsonArray();
+        if (!files.Any(f => string.Equals((string)f, testCrontab.ToString(), StringComparison.OrdinalIgnoreCase)))
+        {
+            files.Add(testCrontab.ToString());
+            config["CrontabFiles"] = files;
+            File.WriteAllText(configFile, config.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }),
+                new UTF8Encoding(false));
+        }
+
+        // Create recorder.cmd, long.cmd and target.lnk now, so the first tick does not miss them.
+        if (OperatingSystem.IsWindows())
+            ProcessTasks.StartProcess("powershell.exe",
+                // The argument handler quotes paths with spaces itself; do not add quotes here.
+                $"-NoProfile -ExecutionPolicy Bypass -File {testDir / "ensure-test-assets.ps1"}").AssertZeroExitCode();
+
+        Log.Information($"Standalone test cases: {testCrontab}");
+        Log.Information($"Check results: {testDir / "check-test-results.ps1"}");
+    }
 
     Target Syrup => _ => _
         .DependsOn(GithubRelease)

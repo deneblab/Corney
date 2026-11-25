@@ -28,6 +28,7 @@ Main build targets:
 
 ### Development Environment
 - **Local standalone**: `dev/app.standalone/Corney.exe` (built executable)
+- **Standalone test cases**: `PublishLocalStandalone` copies `dev-tests/standalone/*.ps1` to `dev/app.standalone/test env/` and adds a generated `crontab.tests.txt` (.lnk with args, path with spaces, duplicate detector, >5 min process, missing program); check with `test env/check-test-results.ps1`
 - **VS debugging**: `dev/app.vs/` contains config and logs for development
 - **Config files**: Located in `dev/app.vs/config/corney/`
 
