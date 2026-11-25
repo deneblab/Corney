@@ -2,7 +2,6 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Threading;
 using Corney.Core.Features.Cron.Models;
 using Corney.Features.Processes;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -109,56 +108,6 @@ public class ProcessWrapperTests
         }
     }
 
-    /// <summary>
-    ///     Real .lnk on Windows. Run through scripts/test-lnk.ps1, which creates the shortcut
-    ///     (test.lnk -> target.cmd writing its arguments to result.txt) and sets CORNEY_TEST_LNK.
-    /// </summary>
-    [WindowsShortcutFact]
-    public void Start_Shortcut_RunsTargetWithArguments()
-    {
-        var shortcut = Environment.GetEnvironmentVariable(WindowsShortcutFactAttribute.EnvVar)!;
-        var result = Path.Combine(Path.GetDirectoryName(shortcut)!, "result.txt");
-        if (File.Exists(result))
-            File.Delete(result);
-
-        // Same shape as the SyrupEvolve crontab line, plus a quoted argument with a space.
-        var item = Pharse.Tokenize2($"\"{shortcut}\" update -p simple-scraper,robe-nova \"a b\"");
-
-        var stopwatch = Stopwatch.StartNew();
-        CreateWrapper().Start(item);
-        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5), $"Start took {stopwatch.Elapsed}");
-
-        var text = WaitForText(result, "args=", TimeSpan.FromSeconds(15));
-
-        Assert.Contains("args=update -p simple-scraper,robe-nova \"a b\"", text);
-    }
-
-    private static string WaitForText(string path, string expected, TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        var text = string.Empty;
-        while (DateTime.UtcNow < deadline)
-        {
-            try
-            {
-                if (File.Exists(path))
-                {
-                    text = File.ReadAllText(path);
-                    if (text.Contains(expected))
-                        return text;
-                }
-            }
-            catch (IOException)
-            {
-                // target.cmd is still writing
-            }
-
-            Thread.Sleep(200);
-        }
-
-        return text;
-    }
-
     [Fact]
     public void Start_MissingProgram_ThrowsWithRealCause()
     {
@@ -168,21 +117,5 @@ public class ProcessWrapperTests
         };
 
         Assert.Throws<Win32Exception>(() => CreateWrapper().Start(item));
-    }
-}
-
-/// <summary>
-///     Runs only on Windows with CORNEY_TEST_LNK set (scripts/test-lnk.ps1); skipped otherwise.
-/// </summary>
-public sealed class WindowsShortcutFactAttribute : FactAttribute
-{
-    public const string EnvVar = "CORNEY_TEST_LNK";
-
-    public WindowsShortcutFactAttribute()
-    {
-        if (!OperatingSystem.IsWindows())
-            Skip = "Windows only";
-        else if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(EnvVar)))
-            Skip = $"Set {EnvVar} to a test .lnk; run scripts/test-lnk.ps1";
     }
 }

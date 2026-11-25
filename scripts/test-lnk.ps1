@@ -6,12 +6,13 @@
     1. Creates a test folder with target.cmd, which appends the arguments and the
        working directory it receives to result.txt.
     2. Creates test.lnk pointing to target.cmd (via WScript.Shell).
-    3. Runs the Windows-only test ProcessWrapperTests.Start_Shortcut_RunsTargetWithArguments
+    3. Runs the Windows-only test ProcessWrapperWindowsTests.Start_Shortcut_RunsTargetWithArguments
        with CORNEY_TEST_LNK set. The test starts the shortcut through the real ProcessWrapper,
        the same way Corney starts SyrupEvolve.lnk, and checks result.txt.
     4. Prints result.txt and a crontab line for a manual test in a running Corney.
 
-    Without CORNEY_TEST_LNK the test is skipped, so CI and Linux are not affected.
+    Without CORNEY_TEST_LNK the test creates its own shortcut (that is how it runs on CI);
+    on non-Windows systems it is skipped.
 
 .PARAMETER Keep
     Keep the test folder (needed for the manual crontab test).
@@ -68,7 +69,7 @@ Write-Host ""
 # --------- run the test ---------
 $env:CORNEY_TEST_LNK = $shortcut
 try {
-    & dotnet test $testProject --filter "FullyQualifiedName~ProcessWrapperTests.Start_Shortcut_RunsTargetWithArguments" --logger "console;verbosity=normal"
+    & dotnet test $testProject --filter "FullyQualifiedName~ProcessWrapperWindowsTests.Start_Shortcut_RunsTargetWithArguments" --logger "console;verbosity=normal"
     $testExitCode = $LASTEXITCODE
 }
 finally {
