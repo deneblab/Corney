@@ -67,32 +67,19 @@ class Build : FalloutBuild
         .DependsOn(Restore)
         .Executes(() =>
         {
-            var testProject = Solution.GetProject("Corney.Tests");
-            if (testProject == null)
-            {
-                Log.Warning("Test project not found, skipping tests");
-                return;
-            }
-
-            var p = CorneyWinProject;
-            if (p == null) return;
+            // A failing test must stop the build: GithubRelease (and the Release / Publish Syrup
+            // workflows) depends on this target.
+            var testProject = Solution.GetProject("Corney.Tests")
+                              ?? throw new InvalidOperationException("Test project Corney.Tests not found in the solution");
 
             var outDir = TmpBuild / CorneyWinProject.Name / "test-result";
             outDir.CreateOrCleanDirectory();
 
-            try
-            {
-                DotNetTest(s => s
-                    .SetProjectFile(testProject)
-                    .SetConfiguration(Configuration)
-                    .SetLoggers("trx")
-                    .SetResultsDirectory(outDir));
-            }
-            catch (ProcessException ex)
-            {
-                Log.Warning($"Tests failed with exit code: {ex.ExitCode}");
-                Log.Information("Continuing build despite test failures...");
-            }
+            DotNetTest(s => s
+                .SetProjectFile(testProject)
+                .SetConfiguration(Configuration)
+                .SetLoggers("trx")
+                .SetResultsDirectory(outDir));
         });
 
     void PublishSingleFile(Project p, AbsolutePath outDir)

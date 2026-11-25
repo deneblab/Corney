@@ -14,6 +14,7 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+      checks: write
 
     steps:
     - name: Checkout code
@@ -50,6 +51,14 @@ jobs:
     - name: Build with Fallout (GithubRelease)
       run: .\build.cmd GithubRelease
       shell: cmd
+
+    - name: Publish test results
+      uses: dorny/test-reporter@v1
+      if: success() || failure()
+      with:
+        name: .NET Tests
+        path: .fallout/temp/w/Corney/test-result/*.trx
+        reporter: dotnet-trx
 
 
     - name: Create and push tag
