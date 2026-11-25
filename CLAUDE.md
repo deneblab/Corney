@@ -56,7 +56,7 @@ The codebase follows feature-based organization in `src/Corney.Core/Features/`:
   - `FileWatchHelpers`: Utilities for file monitoring
 
 - **Processes**: Command execution
-  - `ProcessWrapper`: Manages external process execution
+  - `ProcessWrapper`: Starts external processes fire-and-forget, like crontab: never waits for exit, never kills, ignores exit codes. `.exe/.com/.bat/.cmd` start directly (no window); other files (e.g. `.lnk` shortcuts) start through the Windows shell
   - `Pharse`: Command parsing and tokenization
   - `StringHelper`: String manipulation utilities
 
