@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
@@ -274,12 +276,26 @@ public class CronService : ICronService, IDisposable
                 processWrapper.Start(Pharse.Tokenize2(cronDefinition.ExecutePart));
                 jobTimer.MarkSuccess();
             }
+            catch (Exception ex) when (IsStartFailure(ex))
+            {
+                // Missing program, access denied, no file association: the message says it all,
+                // a stack trace every run would only bury it.
+                jobTimer.MarkFailure();
+                _log.LogError("Failed to execute cron job: {ExecutePart}: {Error}", cronDefinition.ExecutePart,
+                    ex.Message);
+            }
             catch (Exception ex)
             {
                 jobTimer.MarkFailure();
                 _log.LogError(ex, "Failed to execute cron job: {ExecutePart}", cronDefinition.ExecutePart);
             }
         }
+    }
+
+    /// <summary>The OS could not start the program; expected and fully described by its message.</summary>
+    internal static bool IsStartFailure(Exception ex)
+    {
+        return ex is Win32Exception or FileNotFoundException or DirectoryNotFoundException;
     }
 
     /// <summary>

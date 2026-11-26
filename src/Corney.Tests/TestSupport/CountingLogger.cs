@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
 using Microsoft.Extensions.Logging;
 
 namespace Corney.Tests.TestSupport;
@@ -11,6 +12,7 @@ internal sealed class CountingLogger<T> : ILogger<T>
 {
     private readonly ConcurrentDictionary<int, int> _counts = new();
     private readonly ConcurrentDictionary<LogLevel, int> _levels = new();
+    private int _withException;
 
     public IDisposable BeginScope<TState>(TState state)
     {
@@ -27,7 +29,12 @@ internal sealed class CountingLogger<T> : ILogger<T>
     {
         _counts.AddOrUpdate(eventId.Id, 1, (_, c) => c + 1);
         _levels.AddOrUpdate(logLevel, 1, (_, c) => c + 1);
+        if (exception != null)
+            Interlocked.Increment(ref _withException);
     }
+
+    /// <summary>Entries logged with an exception (written with its stack trace).</summary>
+    public int WithException => _withException;
 
     /// <summary>Entries at the given level or higher (what the log file keeps for Debug).</summary>
     public int CountAtLeast(LogLevel level)
@@ -43,6 +50,7 @@ internal sealed class CountingLogger<T> : ILogger<T>
     {
         _counts.Clear();
         _levels.Clear();
+        _withException = 0;
     }
 
     public int Count(EventId eventId)
